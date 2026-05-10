@@ -11,15 +11,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.59.16",
     "@tms/design-system": "workspace:*",
     "@tms/shared": "workspace:*",
-    "@tanstack/react-query": "^5.59.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0"
   },
   "devDependencies": {
     "@module-federation/vite": "^1.1.13",
+    "@types/node": "^25.6.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",

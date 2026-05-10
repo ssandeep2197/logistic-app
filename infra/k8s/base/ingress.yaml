@@ -16,10 +16,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [app.handatransportation.com]
+    - hosts: [app.helloworlds.com]
       secretName: tms-tls
   rules:
-    - host: app.handatransportation.com
+    - host: app.helloworlds.com
       http:
         paths:
           # API routed via api-gateway

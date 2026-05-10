@@ -10,11 +10,20 @@ ALTER TABLE identity.app_group    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity.refresh_token ENABLE ROW LEVEL SECURITY;
 
 -- The signup flow needs to insert the FIRST tenant before any user exists, so
--- the policy on `tenant` allows insert when the GUC is unset, but reads only
--- when the GUC matches the row's id.
+-- the policy on `tenant` is permissive when the GUC is unset.
+--   * `current_setting('app.current_tenant', true)` returns NULL when the GUC
+--     has not been set (missing_ok=true). Plain `= ''` against NULL yields
+--     NULL → row denied, which broke bootstrap. We coalesce to '' so the
+--     unset case becomes truthy.
+--   * Once a tenant context is active, RlsGucInterceptor sets the GUC and
+--     only the matching tenant row is visible.
+-- Without WITH CHECK, Postgres applies USING to inserts as well; the same
+-- coalesce makes inserts work in both modes.
 CREATE POLICY tenant_isolation ON identity.tenant
-    USING (id::text = current_setting('app.current_tenant', true)
-        OR current_setting('app.current_tenant', true) = '');
+    USING (
+        id::text = coalesce(current_setting('app.current_tenant', true), '')
+        OR coalesce(current_setting('app.current_tenant', true), '') = ''
+    );
 
 -- All other tenant tables: GUC must match.  Empty GUC = no rows visible.
 CREATE POLICY user_tenant_isolation ON identity.app_user

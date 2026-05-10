@@ -1,7 +1,7 @@
 {
   "type": "record",
   "name": "TruckPosition",
-  "namespace": "com.handa.tms.contracts.tracking",
+  "namespace": "com.helloworlds.tms.contracts.tracking",
   "doc": "Single GPS sample emitted every 30s by tracking-service. Consumers: dispatch (ETA, auto-scheduler), compliance (state-mile / IFTA), reporting.",
   "fields": [
     { "name": "tenantId",  "type": "string", "doc": "UUID of owning tenant." },

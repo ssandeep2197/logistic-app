@@ -106,7 +106,9 @@ CREATE TABLE identity.refresh_token (
     expires_at      TIMESTAMPTZ NOT NULL,
     revoked_at      TIMESTAMPTZ,
     user_agent      VARCHAR(500),
-    ip              INET,
+    -- VARCHAR not inet so JDBC's String→column mapping is straightforward.
+    -- Switch to inet only when we add IP-range queries.
+    ip              VARCHAR(45),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_refresh_token_user ON identity.refresh_token(user_id);

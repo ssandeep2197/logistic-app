@@ -79,7 +79,7 @@ export function Login() {
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          New to Handa TMS?{' '}
+          New to Helloworlds TMS?{' '}
           <Link to="/signup" className="font-medium text-blue-600 hover:underline">
             Create a tenant
           </Link>

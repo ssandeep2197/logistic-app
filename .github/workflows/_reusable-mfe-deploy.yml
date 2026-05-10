@@ -42,16 +42,16 @@ jobs:
         env:
           # When the shell builds for prod, point its remotes at the prod URLs
           # (each MFE has its own subdomain or path under the same gateway).
-          VITE_MFE_IDENTITY_URL:   https://app.handatransportation.com/mfe/identity/remoteEntry.js
-          VITE_MFE_OPERATIONS_URL: https://app.handatransportation.com/mfe/operations/remoteEntry.js
-          VITE_MFE_DISPATCH_URL:   https://app.handatransportation.com/mfe/dispatch/remoteEntry.js
-          VITE_MFE_TRACKING_URL:   https://app.handatransportation.com/mfe/tracking/remoteEntry.js
-          VITE_MFE_FINANCE_URL:    https://app.handatransportation.com/mfe/finance/remoteEntry.js
-          VITE_MFE_PAYROLL_URL:    https://app.handatransportation.com/mfe/payroll/remoteEntry.js
-          VITE_MFE_COMPLIANCE_URL: https://app.handatransportation.com/mfe/compliance/remoteEntry.js
-          VITE_MFE_DOCUMENTS_URL:  https://app.handatransportation.com/mfe/documents/remoteEntry.js
-          VITE_MFE_REPORTS_URL:    https://app.handatransportation.com/mfe/reports/remoteEntry.js
-          VITE_API_BASE: https://app.handatransportation.com/api
+          VITE_MFE_IDENTITY_URL:   https://app.helloworlds.com/mfe/identity/remoteEntry.js
+          VITE_MFE_OPERATIONS_URL: https://app.helloworlds.com/mfe/operations/remoteEntry.js
+          VITE_MFE_DISPATCH_URL:   https://app.helloworlds.com/mfe/dispatch/remoteEntry.js
+          VITE_MFE_TRACKING_URL:   https://app.helloworlds.com/mfe/tracking/remoteEntry.js
+          VITE_MFE_FINANCE_URL:    https://app.helloworlds.com/mfe/finance/remoteEntry.js
+          VITE_MFE_PAYROLL_URL:    https://app.helloworlds.com/mfe/payroll/remoteEntry.js
+          VITE_MFE_COMPLIANCE_URL: https://app.helloworlds.com/mfe/compliance/remoteEntry.js
+          VITE_MFE_DOCUMENTS_URL:  https://app.helloworlds.com/mfe/documents/remoteEntry.js
+          VITE_MFE_REPORTS_URL:    https://app.helloworlds.com/mfe/reports/remoteEntry.js
+          VITE_API_BASE: https://app.helloworlds.com/api
 
       - uses: actions/upload-artifact@v4
         with:
@@ -97,8 +97,8 @@ jobs:
             # SPA fallback only for the shell — every MFE is a remote, not a page.
             location / { try_files $uri $uri/ /index.html; }
 
-            # CORS so the shell at app.handatransportation.com can fetch
-            # remoteEntry.js from mfe-*.handatransportation.com / sub-paths.
+            # CORS so the shell at app.helloworlds.com can fetch
+            # remoteEntry.js from mfe-*.helloworlds.com / sub-paths.
             add_header Access-Control-Allow-Origin "*" always;
             add_header Cross-Origin-Resource-Policy "cross-origin" always;
           }

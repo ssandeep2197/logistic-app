@@ -13,7 +13,7 @@ plugins {
 }
 
 allprojects {
-    group = "com.handa.tms"
+    group = "com.helloworlds.tms"
     version = (System.getenv("SERVICE_VERSION") ?: "0.1.0-SNAPSHOT")
 
     repositories {

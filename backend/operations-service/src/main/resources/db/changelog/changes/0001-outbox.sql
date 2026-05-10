@@ -6,7 +6,7 @@ CREATE TABLE operations.outbox_event (
     tenant_id       UUID,
     topic           VARCHAR(200) NOT NULL,
     message_key     VARCHAR(200) NOT NULL,
-    payload         JSONB NOT NULL,
+    payload         TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     sent_at         TIMESTAMPTZ,
     attempts        INTEGER NOT NULL DEFAULT 0

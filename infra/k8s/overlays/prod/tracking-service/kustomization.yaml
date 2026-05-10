@@ -6,7 +6,7 @@ resources:
   - ../../../base/tracking-service
 
 images:
-  - name: ghcr.io/handatransportation/tracking-service
+  - name: ghcr.io/helloworlds/tracking-service
     newTag: placeholder
 
 patches:

@@ -1,0 +1,59 @@
+# Pre-creates extensions, per-service schemas, and per-service login roles.
+# Mounted into the postgres container's docker-entrypoint-initdb.d so it runs
+# exactly once on the first start (only when the data directory is empty).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tms-postgres-init
+  namespace: tms
+data:
+  01-extensions-and-schemas.sql: |
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "postgis";
+    CREATE EXTENSION IF NOT EXISTS "timescaledb";
+
+    CREATE SCHEMA IF NOT EXISTS identity;
+    CREATE SCHEMA IF NOT EXISTS operations;
+    CREATE SCHEMA IF NOT EXISTS dispatch;
+    CREATE SCHEMA IF NOT EXISTS tracking;
+    CREATE SCHEMA IF NOT EXISTS finance;
+    CREATE SCHEMA IF NOT EXISTS payroll;
+    CREATE SCHEMA IF NOT EXISTS compliance;
+    CREATE SCHEMA IF NOT EXISTS documents;
+    CREATE SCHEMA IF NOT EXISTS reporting;
+    CREATE SCHEMA IF NOT EXISTS notification;
+
+    -- Per-service login role.  Password is set via separate secret-driven
+    -- ALTER ROLE statements in 02-set-passwords.sh; here we just create the
+    -- roles without passwords and grant their schema privileges.
+    DO $$
+    DECLARE
+        svc TEXT;
+        services TEXT[] := ARRAY['identity','operations','dispatch','tracking',
+                                  'finance','payroll','compliance','documents',
+                                  'reporting','notification'];
+    BEGIN
+        FOREACH svc IN ARRAY services LOOP
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = svc || '_svc') THEN
+                EXECUTE format('CREATE ROLE %I LOGIN', svc || '_svc');
+            END IF;
+            EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO %I', svc, svc || '_svc');
+            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL ON TABLES TO %I', svc, svc || '_svc');
+            EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL ON SEQUENCES TO %I', svc, svc || '_svc');
+        END LOOP;
+    END $$;
+
+  02-set-passwords.sh: |
+    #!/usr/bin/env bash
+    set -e
+    # Each per-service role's password lives in /run/secrets/svc-passwords/<service>
+    # (mounted from the Secret).  We ALTER ROLE here so the role file never
+    # contains a password and a kubectl describe doesn't leak hashes.
+    for f in /run/secrets/svc-passwords/*; do
+      svc=$(basename "$f")
+      [[ "$svc" =~ ^\.\. ]] && continue
+      pw=$(<"$f")
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+           -c "ALTER ROLE ${svc}_svc WITH ENCRYPTED PASSWORD '${pw}';"
+    done

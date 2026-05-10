@@ -1,0 +1,43 @@
+# Single ingress for tms.helloworlds.co.in.
+# /api/identity/* is rewritten to /* and forwarded to tms-identity:8001.
+# Everything else goes to tms-web (the React shell + mfe-identity bundle).
+#
+# cert-manager uses the existing cluster issuer letsencrypt-prod to provision
+# the TLS cert automatically — no manual cert work needed.  Make sure
+# tms.helloworlds.co.in has an A record pointing at this server's external IP
+# BEFORE applying, otherwise the HTTP-01 challenge will fail and the cert
+# stays in pending state.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tms-ingress
+  namespace: tms
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    # Strip /api/identity prefix before forwarding.
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [tms.helloworlds.co.in]
+      secretName: tms-tls
+  rules:
+    - host: tms.helloworlds.co.in
+      http:
+        paths:
+          # Identity service routes (/api/identity/auth/login → /auth/login)
+          - path: /api/identity(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tms-identity
+                port: { number: 8001 }
+          # Static frontend (shell + mfe-identity)
+          - path: /()(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tms-web
+                port: { number: 80 }

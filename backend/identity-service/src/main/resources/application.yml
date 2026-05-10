@@ -71,5 +71,5 @@ logging:
   pattern:
     correlation: '[reqId=%X{requestId:-} tenant=%X{tenantId:-} user=%X{userId:-}] '
   level:
-    com.handa.tms: DEBUG
+    com.helloworlds.tms: DEBUG
     org.hibernate.SQL: INFO

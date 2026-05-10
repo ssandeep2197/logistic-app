@@ -8,5 +8,5 @@ commonLabels:
   app.kubernetes.io/name: shell
   app.kubernetes.io/part-of: tms-frontend
 images:
-  - name: ghcr.io/handatransportation/shell
+  - name: ghcr.io/helloworlds/shell
     newTag: placeholder

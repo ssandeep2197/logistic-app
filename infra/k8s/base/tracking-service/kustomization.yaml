@@ -8,5 +8,5 @@ commonLabels:
   app.kubernetes.io/name: tracking-service
   app.kubernetes.io/part-of: tms
 images:
-  - name: ghcr.io/handatransportation/tracking-service
+  - name: ghcr.io/helloworlds/tracking-service
     newTag: placeholder

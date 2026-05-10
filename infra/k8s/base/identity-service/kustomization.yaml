@@ -8,5 +8,5 @@ commonLabels:
   app.kubernetes.io/name: identity-service
   app.kubernetes.io/part-of: tms
 images:
-  - name: ghcr.io/handatransportation/identity-service
+  - name: ghcr.io/helloworlds/identity-service
     newTag: placeholder

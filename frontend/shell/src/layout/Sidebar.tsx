@@ -22,7 +22,7 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-56 flex-col border-r border-slate-200 bg-white">
-      <div className="px-6 py-5 text-lg font-semibold text-blue-700">Handa TMS</div>
+      <div className="px-6 py-5 text-lg font-semibold text-blue-700">Helloworlds TMS</div>
       <nav className="flex flex-col gap-0.5 px-3 pb-6">
         {visible.map(item => (
           <NavLink

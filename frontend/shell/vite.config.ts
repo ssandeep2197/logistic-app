@@ -25,17 +25,22 @@ export default defineConfig({
     federation({
       name: 'shell',
       remotes: {
-        // Each remote URL is overridable via env at build time so prod points
-        // at the CDN-deployed copy instead of localhost.
-        mfe_identity:   process.env.VITE_MFE_IDENTITY_URL   ?? 'http://localhost:5174/remoteEntry.js',
-        mfe_operations: process.env.VITE_MFE_OPERATIONS_URL ?? 'http://localhost:5175/remoteEntry.js',
-        mfe_dispatch:   process.env.VITE_MFE_DISPATCH_URL   ?? 'http://localhost:5176/remoteEntry.js',
-        mfe_tracking:   process.env.VITE_MFE_TRACKING_URL   ?? 'http://localhost:5177/remoteEntry.js',
-        mfe_finance:    process.env.VITE_MFE_FINANCE_URL    ?? 'http://localhost:5178/remoteEntry.js',
-        mfe_payroll:    process.env.VITE_MFE_PAYROLL_URL    ?? 'http://localhost:5179/remoteEntry.js',
-        mfe_compliance: process.env.VITE_MFE_COMPLIANCE_URL ?? 'http://localhost:5180/remoteEntry.js',
-        mfe_documents:  process.env.VITE_MFE_DOCUMENTS_URL  ?? 'http://localhost:5181/remoteEntry.js',
-        mfe_reports:    process.env.VITE_MFE_REPORTS_URL    ?? 'http://localhost:5182/remoteEntry.js',
+        // Only remotes we actually deploy.  The MF Vite plugin emits a
+        // bootstrap that does `Promise.all(loadRemote(...))` before React
+        // renders, so a single missing remoteEntry.js produces a white screen.
+        // Add a remote here only AFTER its build artifacts ship.
+        //
+        // type:"module" is REQUIRED — Vite emits ESM remoteEntry files
+        // that contain top-level `import` statements.  The default
+        // type:"var" injects a classic <script> tag and the browser throws
+        // "Cannot use import statement outside a module" at runtime, which
+        // shows up as a white screen because the host bootstrap awaits
+        // Promise.all of all remote loads before React renders.
+        mfe_identity: {
+          type: 'module',
+          name: 'mfe_identity',
+          entry: process.env.VITE_MFE_IDENTITY_URL ?? 'http://localhost:5174/remoteEntry.js',
+        },
       },
       shared: {
         // Singletons — every remote uses the same React + Query instance.

@@ -12,6 +12,6 @@ data:
   POSTGRES_HOST: "postgres.tms.svc.cluster.local"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "tms"
-  S3_ENDPOINT: "https://s3.handatransportation.com"
+  S3_ENDPOINT: "https://s3.helloworlds.com"
   S3_BUCKET_DOCUMENTS: "tms-documents"
   JWT_ISSUER: "tms-identity"

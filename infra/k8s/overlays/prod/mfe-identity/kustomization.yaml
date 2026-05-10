@@ -6,5 +6,5 @@ resources:
   - ../../../base/mfe-identity
 
 images:
-  - name: ghcr.io/handatransportation/mfe-identity
+  - name: ghcr.io/helloworlds/mfe-identity
     newTag: placeholder

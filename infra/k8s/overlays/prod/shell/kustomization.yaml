@@ -6,5 +6,5 @@ resources:
   - ../../../base/shell
 
 images:
-  - name: ghcr.io/handatransportation/shell
+  - name: ghcr.io/helloworlds/shell
     newTag: placeholder

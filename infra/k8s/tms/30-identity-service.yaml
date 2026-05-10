@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tms-identity
+  namespace: tms
+  labels:
+    app: tms-identity
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: tms-identity }
+  template:
+    metadata:
+      labels: { app: tms-identity }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: identity-service
+          image: tms-identity-service:latest
+          imagePullPolicy: IfNotPresent          # local image imported into k3s
+          ports: [{ name: http, containerPort: 8001 }]
+          env:
+            - { name: SERVER_PORT, value: "8001" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "prod" }
+            - { name: DATABASE_URL,
+                value: "jdbc:postgresql://tms-postgres:5432/tms?currentSchema=identity" }
+            - { name: DATABASE_USER, value: identity_svc }
+            - name: DATABASE_PASSWORD
+              valueFrom: { secretKeyRef: { name: tms-svc-passwords, key: identity } }
+            - name: JWT_SIGNING_KEY
+              valueFrom: { secretKeyRef: { name: tms-jwt, key: signing-key } }
+            # Outbox dispatcher disabled until Kafka is deployed in cluster;
+            # rows still write to identity.outbox_event so we don't lose events.
+            - { name: TMS_MESSAGING_OUTBOX_ENABLED, value: "false" }
+            # Avoid trying to connect to a Kafka that isn't there.
+            - { name: SPRING_AUTOCONFIGURE_EXCLUDE,
+                value: "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration" }
+          resources:
+            requests: { cpu: "200m", memory: "768Mi" }
+            limits:   { cpu: "1500m", memory: "1.5Gi" }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            failureThreshold: 60      # 60 × 5s = 5 min for cold start + Liquibase
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tms-identity
+  namespace: tms
+spec:
+  selector: { app: tms-identity }
+  ports:
+    - { name: http, port: 8001, targetPort: http }

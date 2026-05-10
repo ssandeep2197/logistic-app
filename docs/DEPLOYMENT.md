@@ -54,7 +54,7 @@ A push that touches only `backend/dispatch-service/...` triggers exactly one ima
 The previous image tag is still in GHCR; rollback is one command:
 
 ```bash
-kubectl set image deployment/identity-service identity-service=ghcr.io/handatransportation/identity-service:<previous-sha> -n tms
+kubectl set image deployment/identity-service identity-service=ghcr.io/helloworlds/identity-service:<previous-sha> -n tms
 kubectl rollout status deployment/identity-service -n tms
 ```
 

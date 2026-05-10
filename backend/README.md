@@ -33,4 +33,4 @@ CI uses `dorny/paths-filter` to detect which subdirectories changed in a push, t
 
 ## Shared library
 
-`platform-lib/` is published as `com.handa.tms:platform-lib-*` artifacts. Bump the version in `gradle/libs.versions.toml` and publish; downstream services consume the new version on their next build.
+`platform-lib/` is published as `com.helloworlds.tms:platform-lib-*` artifacts. Bump the version in `gradle/libs.versions.toml` and publish; downstream services consume the new version on their next build.

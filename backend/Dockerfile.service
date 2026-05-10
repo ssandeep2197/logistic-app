@@ -3,7 +3,7 @@
 #   docker build -f backend/Dockerfile.service \
 #     --build-arg SERVICE=identity-service \
 #     --build-arg PORT=8001 \
-#     -t ghcr.io/handatransportation/identity-service:$VERSION \
+#     -t ghcr.io/helloworlds/identity-service:$VERSION \
 #     backend
 #
 # Why one Dockerfile and not per-service: every service builds the same way

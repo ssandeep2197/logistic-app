@@ -29,7 +29,7 @@ spec:
       containers:
         - name: identity-service
           # Image tag overridden by overlays/prod/identity-service/kustomization.yaml.
-          image: ghcr.io/handatransportation/identity-service:placeholder
+          image: ghcr.io/helloworlds/identity-service:placeholder
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 8001 }

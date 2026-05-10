@@ -22,7 +22,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: tracking-service
-          image: ghcr.io/handatransportation/tracking-service:placeholder
+          image: ghcr.io/helloworlds/tracking-service:placeholder
           imagePullPolicy: IfNotPresent
           ports: [{ name: http, containerPort: 8004 }]
           env:

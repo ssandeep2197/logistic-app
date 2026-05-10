@@ -21,7 +21,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: __MFE_NAME__
-          image: ghcr.io/handatransportation/__MFE_NAME__:placeholder
+          image: ghcr.io/helloworlds/__MFE_NAME__:placeholder
           ports: [{ name: http, containerPort: 80 }]
           resources:
             requests: { cpu: "20m", memory: "32Mi" }

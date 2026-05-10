@@ -16,11 +16,11 @@ The reason every backend service in this repo is ~200 LOC of plumbing instead of
 `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.handa.tms:platform-lib-security:0.1.0-SNAPSHOT")
-    implementation("com.handa.tms:platform-lib-web:0.1.0-SNAPSHOT")
-    implementation("com.handa.tms:platform-lib-observability:0.1.0-SNAPSHOT")
-    implementation("com.handa.tms:platform-lib-messaging:0.1.0-SNAPSHOT")
-    testImplementation("com.handa.tms:platform-lib-test-support:0.1.0-SNAPSHOT")
+    implementation("com.helloworlds.tms:platform-lib-security:0.1.0-SNAPSHOT")
+    implementation("com.helloworlds.tms:platform-lib-web:0.1.0-SNAPSHOT")
+    implementation("com.helloworlds.tms:platform-lib-observability:0.1.0-SNAPSHOT")
+    implementation("com.helloworlds.tms:platform-lib-messaging:0.1.0-SNAPSHOT")
+    testImplementation("com.helloworlds.tms:platform-lib-test-support:0.1.0-SNAPSHOT")
 }
 ```
 

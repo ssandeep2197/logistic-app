@@ -36,6 +36,6 @@ dependencies {
 }
 
 tasks.bootBuildImage {
-    imageName.set("ghcr.io/handatransportation/identity-service:${project.version}")
+    imageName.set("ghcr.io/helloworlds/identity-service:${project.version}")
     builder.set("paketobuildpacks/builder-jammy-base:latest")
 }

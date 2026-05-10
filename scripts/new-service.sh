@@ -12,7 +12,7 @@ fi
 NAME="$1"
 PORT="$2"
 SVC="${NAME}-service"
-PKG="com.handa.tms.${NAME}"
+PKG="com.helloworlds.tms.${NAME}"
 DIR="backend/${SVC}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
