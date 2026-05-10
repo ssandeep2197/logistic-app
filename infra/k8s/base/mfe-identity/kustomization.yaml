@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tms
+# We do NOT have its own deployment.yaml/service.yaml under this directory:
+# every MFE deployment is shape-identical, so we patch the template here.
+# Each new MFE only needs this 12-line kustomization, not copies of YAML.
+resources:
+  - ../mfe-template/deployment.yaml
+  - ../mfe-template/service.yaml
+commonLabels:
+  app.kubernetes.io/name: mfe-identity
+  app.kubernetes.io/part-of: tms-frontend
+patches:
+  - target: { kind: Deployment, name: __MFE_NAME__ }
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: mfe-identity
+      - op: replace
+        path: /spec/selector/matchLabels/app
+        value: mfe-identity
+      - op: replace
+        path: /spec/template/metadata/labels/app
+        value: mfe-identity
+      - op: replace
+        path: /spec/template/spec/containers/0/name
+        value: mfe-identity
+  - target: { kind: Service, name: __MFE_NAME__ }
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: mfe-identity
+      - op: replace
+        path: /spec/selector/app
+        value: mfe-identity
+images:
+  - name: ghcr.io/handatransportation/mfe-identity
+    newTag: placeholder

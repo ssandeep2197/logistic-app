@@ -1,0 +1,10 @@
+spring:
+  application: { name: finance-service }
+server: { port: ${SERVER_PORT:8005}, shutdown: graceful }
+management:
+  endpoints: { web: { exposure: { include: health,info,metrics,prometheus } } }
+tms:
+  security:
+    jwt:
+      signing-key: ${JWT_SIGNING_KEY:local-dev-key-change-me-please-at-least-32-bytes}
+      issuer: tms-identity

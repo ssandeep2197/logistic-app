@@ -1,0 +1,18 @@
+spring:
+  application: { name: documents-service }
+server: { port: ${SERVER_PORT:8008}, shutdown: graceful }
+management:
+  endpoints: { web: { exposure: { include: health,info,metrics,prometheus } } }
+tms:
+  security:
+    jwt:
+      signing-key: ${JWT_SIGNING_KEY:local-dev-key-change-me-please-at-least-32-bytes}
+      issuer: tms-identity
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    access-key: ${S3_ACCESS_KEY:minioadmin}
+    secret-key: ${S3_SECRET_KEY:minioadmin}
+    bucket: ${S3_BUCKET_DOCUMENTS:tms-documents}
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: claude-sonnet-4-6

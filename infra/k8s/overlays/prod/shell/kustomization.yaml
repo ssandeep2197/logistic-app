@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tms
+
+resources:
+  - ../../../base/shell
+
+images:
+  - name: ghcr.io/handatransportation/shell
+    newTag: placeholder

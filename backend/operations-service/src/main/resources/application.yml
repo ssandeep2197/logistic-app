@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: operations-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/tms?currentSchema=operations}
+    username: ${DATABASE_USER:operations_svc}
+    password: ${DATABASE_PASSWORD:operations_dev_password}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: operations
+        jdbc.time_zone: UTC
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    default-schema: operations
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: operations-service
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+      properties: { enable.idempotence: true }
+
+server:
+  port: ${SERVER_PORT:8002}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure: { include: health,info,metrics,prometheus }
+  metrics:
+    tags: { service: operations-service }
+
+tms:
+  security:
+    enable-rls-guc: true
+    jwt:
+      signing-key: ${JWT_SIGNING_KEY:local-dev-key-change-me-please-at-least-32-bytes}
+      issuer: tms-identity
+  messaging:
+    outbox: { enabled: true, poll-ms: 1000 }

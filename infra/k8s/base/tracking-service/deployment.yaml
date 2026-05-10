@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking-service
+  namespace: tms
+  labels: { app: tracking-service, app.kubernetes.io/part-of: tms }
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: tracking-service }
+  template:
+    metadata:
+      labels: { app: tracking-service }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: tracking-service
+          image: ghcr.io/handatransportation/tracking-service:placeholder
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8004 }]
+          env:
+            - { name: PORT, value: "8004" }
+            - { name: NODE_ENV, value: "production" }
+            - { name: DATABASE_URL,
+                value: "postgres://tracking_svc:$(DATABASE_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?options=-c%20search_path%3Dtracking" }
+            - name: DATABASE_PASSWORD
+              valueFrom: { secretKeyRef: { name: tms-postgres, key: tracking-password } }
+            - { name: REDIS_URL, value: "redis://$(REDIS_HOST):$(REDIS_PORT)" }
+            - name: JWT_SIGNING_KEY
+              valueFrom: { secretKeyRef: { name: tms-jwt, key: signing-key } }
+          envFrom:
+            - configMapRef: { name: tms-shared }
+          resources:
+            requests: { cpu: "150m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "768Mi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10

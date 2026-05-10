@@ -1,0 +1,84 @@
+# API Gateway — fronts every public-facing service. The frontend talks ONLY
+# to this; internal service-to-service calls bypass it via cluster DNS.
+#
+# Every route below maps a /<service>/** path prefix to the corresponding
+# in-cluster service.  Rewrite strips the prefix before forwarding so each
+# downstream service sees its real URI.
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
+            allowedMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+            allowedHeaders: ['*']
+            allowCredentials: true
+      routes:
+        - id: identity
+          uri: ${SVC_IDENTITY_URI:http://localhost:8001}
+          predicates:
+            - Path=/api/identity/**
+          filters:
+            - RewritePath=/api/identity/(?<seg>.*), /${seg}
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+        - id: operations
+          uri: ${SVC_OPERATIONS_URI:http://localhost:8002}
+          predicates: [Path=/api/operations/**]
+          filters: [RewritePath=/api/operations/(?<seg>.*), /${seg}]
+        - id: dispatch
+          uri: ${SVC_DISPATCH_URI:http://localhost:8003}
+          predicates: [Path=/api/dispatch/**]
+          filters: [RewritePath=/api/dispatch/(?<seg>.*), /${seg}]
+        - id: tracking
+          uri: ${SVC_TRACKING_URI:http://localhost:8004}
+          predicates: [Path=/api/tracking/**]
+          filters: [RewritePath=/api/tracking/(?<seg>.*), /${seg}]
+        - id: tracking-ws
+          uri: ${SVC_TRACKING_WS_URI:ws://localhost:8004}
+          predicates: [Path=/ws/tracking/**]
+        - id: finance
+          uri: ${SVC_FINANCE_URI:http://localhost:8005}
+          predicates: [Path=/api/finance/**]
+          filters: [RewritePath=/api/finance/(?<seg>.*), /${seg}]
+        - id: payroll
+          uri: ${SVC_PAYROLL_URI:http://localhost:8006}
+          predicates: [Path=/api/payroll/**]
+          filters: [RewritePath=/api/payroll/(?<seg>.*), /${seg}]
+        - id: compliance
+          uri: ${SVC_COMPLIANCE_URI:http://localhost:8007}
+          predicates: [Path=/api/compliance/**]
+          filters: [RewritePath=/api/compliance/(?<seg>.*), /${seg}]
+        - id: documents
+          uri: ${SVC_DOCUMENTS_URI:http://localhost:8008}
+          predicates: [Path=/api/documents/**]
+          filters: [RewritePath=/api/documents/(?<seg>.*), /${seg}]
+        - id: reporting
+          uri: ${SVC_REPORTING_URI:http://localhost:8009}
+          predicates: [Path=/api/reporting/**]
+          filters: [RewritePath=/api/reporting/(?<seg>.*), /${seg}]
+        - id: notification
+          uri: ${SVC_NOTIFICATION_URI:http://localhost:8010}
+          predicates: [Path=/api/notification/**]
+          filters: [RewritePath=/api/notification/(?<seg>.*), /${seg}]
+
+server:
+  port: ${SERVER_PORT:8000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway

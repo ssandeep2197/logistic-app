@@ -1,0 +1,67 @@
+# Single nginx ingress fronts the entire app.
+# Frontend MFEs are served at /mfe/<name>/, the shell at /, the API at /api/.
+# In prod, terminate TLS via cert-manager (Let's Encrypt) — install once,
+# every Ingress with the right annotation gets a cert.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tms-ingress
+  namespace: tms
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    # WebSocket upgrade for tracking-service
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [app.handatransportation.com]
+      secretName: tms-tls
+  rules:
+    - host: app.handatransportation.com
+      http:
+        paths:
+          # API routed via api-gateway
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: api-gateway, port: { number: 8000 } }
+          # Tracking WebSocket (api-gateway proxies it)
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service: { name: api-gateway, port: { number: 8000 } }
+          # Each MFE under /mfe/<name>/ — the shell loads remoteEntry.js
+          # from these paths in production.
+          - path: /mfe/identity
+            pathType: Prefix
+            backend: { service: { name: mfe-identity,    port: { number: 80 } } }
+          - path: /mfe/operations
+            pathType: Prefix
+            backend: { service: { name: mfe-operations,  port: { number: 80 } } }
+          - path: /mfe/dispatch
+            pathType: Prefix
+            backend: { service: { name: mfe-dispatch,    port: { number: 80 } } }
+          - path: /mfe/tracking
+            pathType: Prefix
+            backend: { service: { name: mfe-tracking,    port: { number: 80 } } }
+          - path: /mfe/finance
+            pathType: Prefix
+            backend: { service: { name: mfe-finance,     port: { number: 80 } } }
+          - path: /mfe/payroll
+            pathType: Prefix
+            backend: { service: { name: mfe-payroll,     port: { number: 80 } } }
+          - path: /mfe/compliance
+            pathType: Prefix
+            backend: { service: { name: mfe-compliance,  port: { number: 80 } } }
+          - path: /mfe/documents
+            pathType: Prefix
+            backend: { service: { name: mfe-documents,   port: { number: 80 } } }
+          - path: /mfe/reports
+            pathType: Prefix
+            backend: { service: { name: mfe-reports,     port: { number: 80 } } }
+          # Shell catches everything else.
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: shell, port: { number: 80 } } }

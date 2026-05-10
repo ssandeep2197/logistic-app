@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "TruckPosition",
+  "namespace": "com.handa.tms.contracts.tracking",
+  "doc": "Single GPS sample emitted every 30s by tracking-service. Consumers: dispatch (ETA, auto-scheduler), compliance (state-mile / IFTA), reporting.",
+  "fields": [
+    { "name": "tenantId",  "type": "string", "doc": "UUID of owning tenant." },
+    { "name": "truckId",   "type": "string", "doc": "UUID of the truck/asset." },
+    { "name": "ts",        "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "lat",       "type": "double" },
+    { "name": "lng",       "type": "double" },
+    { "name": "headingDeg",  "type": ["null", "double"], "default": null },
+    { "name": "speedMph",    "type": ["null", "double"], "default": null },
+    { "name": "altitudeFt",  "type": ["null", "double"], "default": null },
+    { "name": "stateCode",   "type": ["null", "string"], "default": null,
+      "doc": "Optional 2-letter state code if tracking-service has resolved it via PostGIS lookup." },
+    { "name": "source",      "type": { "type": "enum", "name": "Source",
+        "symbols": ["DEVICE","ELD_SAMSARA","ELD_MOTIVE","ELD_GEOTAB","MANUAL","SIMULATED"] } }
+  ]
+}

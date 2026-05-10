@@ -1,0 +1,17 @@
+# Shared, NON-secret config. Values that should NEVER be in version control
+# go in Secrets (see secrets.example.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tms-shared
+  namespace: tms
+data:
+  KAFKA_BOOTSTRAP: "kafka.tms.svc.cluster.local:9092"
+  REDIS_HOST: "redis.tms.svc.cluster.local"
+  REDIS_PORT: "6379"
+  POSTGRES_HOST: "postgres.tms.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "tms"
+  S3_ENDPOINT: "https://s3.handatransportation.com"
+  S3_BUCKET_DOCUMENTS: "tms-documents"
+  JWT_ISSUER: "tms-identity"

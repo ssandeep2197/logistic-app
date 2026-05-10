@@ -1,0 +1,181 @@
+# ────────────────────────────────────────────────────────────────────────
+# Per-service path-filtered CI + deploy.
+# On every push to main:
+#   1. detect which services changed (dorny/paths-filter)
+#   2. for each changed service, run its tests
+#   3. for each changed service, build a Docker image, push to GHCR
+#   4. for each changed service, kubectl apply the kustomize overlay on VPS
+# Services that did NOT change are not built and not deployed.
+# ────────────────────────────────────────────────────────────────────────
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+
+permissions:
+  contents: read
+  packages: write          # push to GHCR
+  id-token: write          # OIDC, optional for future cloud auth
+
+jobs:
+  # ── Detect which services changed ─────────────────────────────────────
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      api_gateway:         ${{ steps.f.outputs.api_gateway }}
+      identity:            ${{ steps.f.outputs.identity }}
+      operations:          ${{ steps.f.outputs.operations }}
+      dispatch:            ${{ steps.f.outputs.dispatch }}
+      tracking:            ${{ steps.f.outputs.tracking }}
+      finance:             ${{ steps.f.outputs.finance }}
+      payroll:             ${{ steps.f.outputs.payroll }}
+      compliance:          ${{ steps.f.outputs.compliance }}
+      documents:           ${{ steps.f.outputs.documents }}
+      reporting:           ${{ steps.f.outputs.reporting }}
+      notification:        ${{ steps.f.outputs.notification }}
+      platform_lib:        ${{ steps.f.outputs.platform_lib }}
+      shell:               ${{ steps.f.outputs.shell }}
+      mfe_identity:        ${{ steps.f.outputs.mfe_identity }}
+      mfe_operations:      ${{ steps.f.outputs.mfe_operations }}
+      mfe_dispatch:        ${{ steps.f.outputs.mfe_dispatch }}
+      mfe_tracking:        ${{ steps.f.outputs.mfe_tracking }}
+      mfe_finance:         ${{ steps.f.outputs.mfe_finance }}
+      mfe_payroll:         ${{ steps.f.outputs.mfe_payroll }}
+      mfe_compliance:      ${{ steps.f.outputs.mfe_compliance }}
+      mfe_documents:       ${{ steps.f.outputs.mfe_documents }}
+      mfe_reports:         ${{ steps.f.outputs.mfe_reports }}
+      shared_fe:           ${{ steps.f.outputs.shared_fe }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: f
+        uses: dorny/paths-filter@v3
+        with:
+          # Each filter triggers for both the service's own files AND any
+          # shared lib it transitively depends on — change platform-lib and
+          # every Java service rebuilds; change frontend/shared and every MFE
+          # plus the shell rebuild.
+          filters: |
+            platform_lib:
+              - 'backend/platform-lib/**'
+              - 'backend/build.gradle.kts'
+              - 'backend/settings.gradle.kts'
+              - 'backend/gradle/**'
+            api_gateway:
+              - 'backend/api-gateway/**'
+              - 'backend/platform-lib/**'
+            identity:
+              - 'backend/identity-service/**'
+              - 'backend/platform-lib/**'
+            operations:
+              - 'backend/operations-service/**'
+              - 'backend/platform-lib/**'
+            dispatch:
+              - 'backend/dispatch-service/**'
+              - 'backend/platform-lib/**'
+            tracking:
+              - 'backend/tracking-service/**'
+            finance:
+              - 'backend/finance-service/**'
+              - 'backend/platform-lib/**'
+            payroll:
+              - 'backend/payroll-service/**'
+              - 'backend/platform-lib/**'
+            compliance:
+              - 'backend/compliance-service/**'
+              - 'backend/platform-lib/**'
+            documents:
+              - 'backend/documents-service/**'
+              - 'backend/platform-lib/**'
+            reporting:
+              - 'backend/reporting-service/**'
+              - 'backend/platform-lib/**'
+            notification:
+              - 'backend/notification-service/**'
+              - 'backend/platform-lib/**'
+            shared_fe:
+              - 'frontend/shared/**'
+              - 'frontend/design-system/**'
+              - 'frontend/tsconfig.base.json'
+            shell:
+              - 'frontend/shell/**'
+              - 'frontend/shared/**'
+              - 'frontend/design-system/**'
+            mfe_identity:    [ 'frontend/mfe-identity/**',    'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_operations:  [ 'frontend/mfe-operations/**',  'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_dispatch:    [ 'frontend/mfe-dispatch/**',    'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_tracking:    [ 'frontend/mfe-tracking/**',    'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_finance:     [ 'frontend/mfe-finance/**',     'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_payroll:     [ 'frontend/mfe-payroll/**',     'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_compliance:  [ 'frontend/mfe-compliance/**',  'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_documents:   [ 'frontend/mfe-documents/**',   'frontend/shared/**', 'frontend/design-system/**' ]
+            mfe_reports:     [ 'frontend/mfe-reports/**',     'frontend/shared/**', 'frontend/design-system/**' ]
+
+  # ── Spring Boot services: build, test, image push, deploy ─────────────
+  springboot:
+    needs: detect
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { key: api_gateway,  name: api-gateway,          port: 8000 }
+          - { key: identity,     name: identity-service,     port: 8001 }
+          - { key: operations,   name: operations-service,   port: 8002 }
+          - { key: dispatch,     name: dispatch-service,     port: 8003 }
+          - { key: finance,      name: finance-service,      port: 8005 }
+          - { key: payroll,      name: payroll-service,      port: 8006 }
+          - { key: compliance,   name: compliance-service,   port: 8007 }
+          - { key: documents,    name: documents-service,    port: 8008 }
+          - { key: reporting,    name: reporting-service,    port: 8009 }
+          - { key: notification, name: notification-service, port: 8010 }
+    if: ${{ github.event_name != 'pull_request' || needs.detect.outputs[matrix.key] == 'true' }}
+    uses: ./.github/workflows/_reusable-springboot-deploy.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-port: ${{ matrix.port }}
+      changed: ${{ needs.detect.outputs[matrix.key] == 'true' }}
+      deploy: ${{ github.ref == 'refs/heads/main' && needs.detect.outputs[matrix.key] == 'true' }}
+    secrets: inherit
+
+  # ── Node tracking-service ─────────────────────────────────────────────
+  tracking:
+    needs: detect
+    if: ${{ needs.detect.outputs.tracking == 'true' || github.ref == 'refs/heads/main' }}
+    uses: ./.github/workflows/_reusable-node-deploy.yml
+    with:
+      service-name: tracking-service
+      changed: ${{ needs.detect.outputs.tracking == 'true' }}
+      deploy: ${{ github.ref == 'refs/heads/main' && needs.detect.outputs.tracking == 'true' }}
+    secrets: inherit
+
+  # ── Frontend shell + MFEs ─────────────────────────────────────────────
+  frontend:
+    needs: detect
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { key: shell,           name: shell }
+          - { key: mfe_identity,    name: mfe-identity }
+          - { key: mfe_operations,  name: mfe-operations }
+          - { key: mfe_dispatch,    name: mfe-dispatch }
+          - { key: mfe_tracking,    name: mfe-tracking }
+          - { key: mfe_finance,     name: mfe-finance }
+          - { key: mfe_payroll,     name: mfe-payroll }
+          - { key: mfe_compliance,  name: mfe-compliance }
+          - { key: mfe_documents,   name: mfe-documents }
+          - { key: mfe_reports,     name: mfe-reports }
+    if: ${{ github.event_name != 'pull_request' || needs.detect.outputs[matrix.key] == 'true' || needs.detect.outputs.shared_fe == 'true' }}
+    uses: ./.github/workflows/_reusable-mfe-deploy.yml
+    with:
+      mfe-name: ${{ matrix.name }}
+      changed: ${{ needs.detect.outputs[matrix.key] == 'true' || needs.detect.outputs.shared_fe == 'true' }}
+      deploy: ${{ github.ref == 'refs/heads/main' && (needs.detect.outputs[matrix.key] == 'true' || needs.detect.outputs.shared_fe == 'true') }}
+    secrets: inherit

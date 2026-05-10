@@ -1,0 +1,75 @@
+# Default profile values — local dev overrides via application-local.yml.
+# Production overrides via env vars (Spring picks them up automatically).
+
+spring:
+  application:
+    name: identity-service
+  profiles:
+    default: local
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/tms?currentSchema=identity}
+    username: ${DATABASE_USER:identity_svc}
+    password: ${DATABASE_PASSWORD:identity_dev_password}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 4
+      connection-timeout: 5000
+  jpa:
+    hibernate:
+      ddl-auto: validate          # Liquibase owns the schema; ddl-auto must NEVER be `update`.
+    properties:
+      hibernate:
+        default_schema: identity
+        jdbc.time_zone: UTC
+        format_sql: true
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    default-schema: identity
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+
+server:
+  port: ${SERVER_PORT:8001}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      service: identity-service
+
+tms:
+  security:
+    enable-rls-guc: true
+    public-paths:
+      - /auth/login
+      - /auth/refresh
+      - /auth/signup
+    jwt:
+      signing-key: ${JWT_SIGNING_KEY:local-dev-key-change-me-please-at-least-32-bytes}
+      access-token-ttl: PT15M
+      refresh-token-ttl: P30D
+      issuer: tms-identity
+  messaging:
+    outbox:
+      enabled: true
+      poll-ms: 1000
+
+logging:
+  pattern:
+    correlation: '[reqId=%X{requestId:-} tenant=%X{tenantId:-} user=%X{userId:-}] '
+  level:
+    com.handa.tms: DEBUG
+    org.hibernate.SQL: INFO

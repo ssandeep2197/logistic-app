@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <!-- One include per migration. New migrations are added at the bottom; never edit a committed file. -->
+    <include file="db/changelog/changes/0001-create-core-tables.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0002-rls-policies.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0003-seed-system-roles.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0004-outbox-table.sql" relativeToChangelogFile="false"/>
+
+</databaseChangeLog>

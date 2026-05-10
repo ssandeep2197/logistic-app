@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tms
+
+# Composes the entire prod environment. CI never applies this whole bundle —
+# it applies one sub-overlay at a time so only the deploying service rolls.
+# This file is for ops who want to apply everything in one go (initial install).
+resources:
+  - ../../base/namespace.yaml
+  - ../../base/configmap-shared.yaml
+  - ../../base/ingress.yaml
+  - identity-service
+  - tracking-service
+  - shell
+  - mfe-identity
+  # Add the rest as they roll out:
+  # - api-gateway
+  # - operations-service
+  # - dispatch-service
+  # - finance-service
+  # - ...

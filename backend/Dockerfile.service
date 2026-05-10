@@ -1,0 +1,45 @@
+# Shared Dockerfile for any Spring Boot service in this monorepo.
+# Build with:
+#   docker build -f backend/Dockerfile.service \
+#     --build-arg SERVICE=identity-service \
+#     --build-arg PORT=8001 \
+#     -t ghcr.io/handatransportation/identity-service:$VERSION \
+#     backend
+#
+# Why one Dockerfile and not per-service: every service builds the same way
+# (Gradle multi-project + bootJar). Keep DRY until a service needs something
+# specific (native deps, custom JVM options) — then it can override locally.
+
+ARG SERVICE
+ARG PORT=8080
+
+FROM eclipse-temurin:21-jdk-jammy AS build
+ARG SERVICE
+WORKDIR /work
+
+# Cache the Gradle layer first.
+COPY gradle/ gradle/
+COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
+RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon help || true
+
+# Sources.  We copy everything because Gradle's project graph requires it,
+# but Gradle's incremental build still only compiles what's needed.
+COPY platform-lib/ platform-lib/
+COPY ${SERVICE}/ ${SERVICE}/
+
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew --no-daemon ":${SERVICE}:bootJar" -x test
+
+FROM eclipse-temurin:21-jre-jammy AS runtime
+ARG SERVICE
+ARG PORT
+WORKDIR /app
+
+RUN useradd -r -u 1001 -g root -s /usr/sbin/nologin tms
+COPY --from=build /work/${SERVICE}/build/libs/*.jar /app/app.jar
+USER 1001
+
+EXPOSE ${PORT}
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
+    CMD wget -qO- http://localhost:${PORT}/actuator/health/liveness || exit 1
+ENTRYPOINT ["java","-XX:+UseG1GC","-XX:MaxRAMPercentage=75","-XX:+ExitOnOutOfMemoryError","-jar","/app/app.jar"]

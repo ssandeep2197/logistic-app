@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "UserCreated",
+  "namespace": "com.handa.tms.contracts.identity",
+  "doc": "Emitted by identity-service when a user is created. Other services build their user-name projections from this.",
+  "fields": [
+    { "name": "id",        "type": "string" },
+    { "name": "tenantId",  "type": "string" },
+    { "name": "email",     "type": "string" },
+    { "name": "fullName",  "type": ["null", "string"], "default": null },
+    { "name": "status",    "type": "string" },
+    { "name": "createdAt", "type": { "type": "long", "logicalType": "timestamp-millis" } }
+  ]
+}

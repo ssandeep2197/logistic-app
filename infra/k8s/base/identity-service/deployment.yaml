@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+  namespace: tms
+  labels:
+    app: identity-service
+    app.kubernetes.io/part-of: tms
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: identity-service }
+  template:
+    metadata:
+      labels: { app: identity-service }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: identity-service
+          # Image tag overridden by overlays/prod/identity-service/kustomization.yaml.
+          image: ghcr.io/handatransportation/identity-service:placeholder
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8001 }
+          env:
+            - { name: SERVER_PORT, value: "8001" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "prod" }
+            - { name: DATABASE_URL,
+                value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?currentSchema=identity" }
+            - { name: DATABASE_USER, value: identity_svc }
+            - name: DATABASE_PASSWORD
+              valueFrom: { secretKeyRef: { name: tms-postgres, key: identity-password } }
+            - name: JWT_SIGNING_KEY
+              valueFrom: { secretKeyRef: { name: tms-jwt, key: signing-key } }
+          envFrom:
+            - configMapRef: { name: tms-shared }
+          resources:
+            requests: { cpu: "200m", memory: "768Mi" }
+            limits:   { cpu: "1500m", memory: "1.5Gi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            failureThreshold: 30
+            periodSeconds: 5

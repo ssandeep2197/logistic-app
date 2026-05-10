@@ -1,0 +1,35 @@
+# Generic MFE deployment template.  Each MFE has its own copy under
+# infra/k8s/base/<mfe-name>/ with the name + image substituted.
+# All MFEs use the same nginx container shape so this is mostly identical.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __MFE_NAME__
+  namespace: tms
+  labels: { app: __MFE_NAME__, app.kubernetes.io/part-of: tms-frontend }
+spec:
+  replicas: 2
+  strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 1, maxUnavailable: 0 } }
+  selector: { matchLabels: { app: __MFE_NAME__ } }
+  template:
+    metadata: { labels: { app: __MFE_NAME__ } }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101         # nginx default
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: __MFE_NAME__
+          image: ghcr.io/handatransportation/__MFE_NAME__:placeholder
+          ports: [{ name: http, containerPort: 80 }]
+          resources:
+            requests: { cpu: "20m", memory: "32Mi" }
+            limits:   { cpu: "200m", memory: "128Mi" }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 30

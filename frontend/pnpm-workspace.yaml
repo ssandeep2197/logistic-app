@@ -1,0 +1,7 @@
+# Each MFE, the shell, and the shared libs are workspace packages.
+# pnpm symlinks them; changes in shared/ propagate without a rebuild step.
+packages:
+  - shell
+  - mfe-*
+  - design-system
+  - shared

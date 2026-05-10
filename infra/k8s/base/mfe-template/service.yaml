@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: __MFE_NAME__
+  namespace: tms
+  labels: { app: __MFE_NAME__ }
+spec:
+  selector: { app: __MFE_NAME__ }
+  ports:
+    - { name: http, port: 80, targetPort: http }
