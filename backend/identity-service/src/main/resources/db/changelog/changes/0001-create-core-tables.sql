@@ -1,3 +1,4 @@
+-- (no-op: CI smoke test, force redeploy)
 --liquibase formatted sql
 --changeset tms:0001-identity-core
 --comment: tenants, users, groups, roles, permissions tables.
