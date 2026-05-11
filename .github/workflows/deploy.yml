@@ -1,0 +1,236 @@
+# Push-to-deploy on the self-hosted runner that lives on the same node as the
+# k3s cluster.  Builds happen here, images are imported directly into k3s via
+# `ctr images import`, then the appropriate Deployment is rolled.  No registry,
+# no kubeconfig secret, no external network exposure of the kube-API.
+#
+# Concurrency: queue per-ref so two pushes back-to-back don't race each other
+# on the shared docker daemon.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Detect which area changed so we only build + roll what's affected. ────
+  detect:
+    runs-on: self-hosted
+    outputs:
+      identity: ${{ steps.f.outputs.identity }}
+      frontend: ${{ steps.f.outputs.frontend }}
+      manifests: ${{ steps.f.outputs.manifests }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: f
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            identity:
+              - 'backend/identity-service/**'
+              - 'backend/platform-lib/**'
+              - 'backend/build.gradle.kts'
+              - 'backend/settings.gradle.kts'
+              - 'backend/gradle/**'
+              - 'backend/gradle.properties'
+              - 'backend/gradlew'
+            frontend:
+              - 'frontend/**'
+            manifests:
+              - 'infra/k8s/tms/**'
+
+  # ── Apply k8s manifests (namespace, services, ingress, postgres, etc.) ────
+  # Safe to re-apply every push; kubectl apply is idempotent.  We do this
+  # FIRST so any service-level changes a deploy job needs (e.g. updated env)
+  # are present when the rollout runs.
+  apply-manifests:
+    needs: detect
+    if: needs.detect.outputs.manifests == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: kubectl apply
+        run: |
+          cd infra/k8s/tms
+          # NOTE: bootstrap-secrets.sh is NOT run here — secrets are
+          # generated once out-of-band and rotated manually.  Re-running
+          # would replace them and force every service to restart.
+          kubectl apply -f 00-namespace.yaml
+          kubectl apply -f 10-postgres-init.yaml
+          kubectl apply -f 20-postgres.yaml
+          kubectl apply -f 30-identity-service.yaml
+          kubectl apply -f 40-tms-web.yaml
+          kubectl apply -f 50-ingress.yaml
+
+  # ── identity-service: bootJar → docker → k3s import → rollout restart ────
+  deploy-identity:
+    needs: [detect, apply-manifests]
+    # Run if identity changed.  apply-manifests is a noop if manifests didn't
+    # change, but `needs:` still demands it succeeds; `always()` lets us run
+    # even if it was skipped.
+    if: |
+      always()
+      && needs.detect.outputs.identity == 'true'
+      && (needs.apply-manifests.result == 'success' || needs.apply-manifests.result == 'skipped')
+    runs-on: self-hosted
+    env:
+      JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build bootJar
+        working-directory: backend
+        run: ./gradlew :identity-service:bootJar --no-configuration-cache --no-daemon
+
+      - name: Build + import image
+        id: image
+        run: |
+          set -euo pipefail
+          VERSION="v$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
+          JAR=$(ls backend/identity-service/build/libs/*.jar | head -1)
+          CTX=$(mktemp -d)
+          cp "$JAR" "$CTX/app.jar"
+          cat > "$CTX/Dockerfile" <<'DOCKERFILE'
+          FROM eclipse-temurin:21-jre-jammy
+          WORKDIR /app
+          RUN useradd -r -u 1001 -g root -s /usr/sbin/nologin tms
+          COPY app.jar /app/app.jar
+          USER 1001
+          EXPOSE 8001
+          ENTRYPOINT ["java","-XX:+UseG1GC","-XX:MaxRAMPercentage=75","-XX:+ExitOnOutOfMemoryError","-jar","/app/app.jar"]
+          DOCKERFILE
+          IMAGE="tms-identity-service:${VERSION}"
+          docker build -q -t "$IMAGE" -t tms-identity-service:latest "$CTX"
+          docker save "$IMAGE" tms-identity-service:latest | k3s ctr images import -
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Rollout
+        run: |
+          kubectl -n tms rollout restart deployment/tms-identity
+          kubectl -n tms rollout status  deployment/tms-identity --timeout=240s
+
+      - name: Smoke test (in-cluster, via ingress with Host header)
+        run: |
+          INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.spec.clusterIP}')
+          for i in $(seq 1 30); do
+            code=$(curl -sk -o /dev/null -w '%{http_code}' \
+              -H 'Host: tms.helloworlds.co.in' \
+              "https://${INGRESS_IP}/api/identity/actuator/health/readiness" || true)
+            [[ "$code" == "200" ]] && { echo "✓ identity ready"; exit 0; }
+            sleep 2
+          done
+          echo "✗ identity didn't become ready in 60s" && exit 1
+
+  # ── frontend: pnpm build → bundle into nginx image → roll tms-web ────────
+  deploy-web:
+    needs: [detect, apply-manifests]
+    if: |
+      always()
+      && needs.detect.outputs.frontend == 'true'
+      && (needs.apply-manifests.result == 'success' || needs.apply-manifests.result == 'skipped')
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build shell + mfe-identity
+        working-directory: frontend
+        run: |
+          # corepack is built into Node 20+ on this runner.  pnpm version is
+          # pinned in /root/.bashrc-style state already; reactivate just to
+          # be deterministic.
+          corepack enable
+          corepack prepare pnpm@9.12.2 --activate
+          pnpm install --frozen-lockfile
+          VITE_API_BASE=/api \
+          VITE_MFE_IDENTITY_URL=/mfe/identity/remoteEntry.js \
+            pnpm --filter @tms/shell --filter @tms/mfe-identity build
+
+      - name: Build + import image
+        id: image
+        run: |
+          set -euo pipefail
+          VERSION="v$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
+          BUILD_ID=$(date +%s)
+          CTX=$(mktemp -d)
+          mkdir -p "$CTX/html/mfe/identity"
+          cp -r frontend/shell/dist/. "$CTX/html/"
+          cp -r frontend/mfe-identity/dist/. "$CTX/html/mfe/identity/"
+
+          # Cache-buster on the bootstrap (its filename is stable across builds).
+          sed -i "s|/mf-entry-bootstrap-0\.js|/mf-entry-bootstrap-0.js?v=${BUILD_ID}|g" "$CTX/html/index.html"
+
+          cat > "$CTX/nginx.conf" <<'NGINX'
+          server {
+              listen 80;
+              server_name _;
+              root /usr/share/nginx/html;
+              index index.html;
+              location = /mfe/identity/remoteEntry.js {
+                  add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+                  add_header Cross-Origin-Resource-Policy "cross-origin" always;
+                  try_files $uri =404;
+              }
+              location ~ ^/mf-entry-bootstrap-\d+\.js$ {
+                  add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+                  try_files $uri =404;
+              }
+              location /assets/ {
+                  add_header Cache-Control "public, max-age=31536000, immutable" always;
+                  try_files $uri =404;
+              }
+              location ~ ^/mfe/[^/]+/assets/ {
+                  add_header Cache-Control "public, max-age=31536000, immutable" always;
+                  try_files $uri =404;
+              }
+              location / {
+                  add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+                  try_files $uri $uri/ /index.html;
+              }
+              server_tokens off;
+              add_header X-Content-Type-Options nosniff always;
+          }
+          NGINX
+
+          cat > "$CTX/Dockerfile" <<'DOCKERFILE'
+          FROM nginx:1.27-alpine
+          RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
+          COPY html /usr/share/nginx/html
+          COPY nginx.conf /etc/nginx/conf.d/default.conf
+          EXPOSE 80
+          DOCKERFILE
+
+          IMAGE="tms-web:${VERSION}"
+          docker build -q -t "$IMAGE" -t tms-web:latest "$CTX"
+          docker save "$IMAGE" tms-web:latest | k3s ctr images import -
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Rollout
+        run: |
+          kubectl -n tms rollout restart deployment/tms-web
+          kubectl -n tms rollout status  deployment/tms-web --timeout=180s
+
+      - name: Smoke test
+        run: |
+          INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.spec.clusterIP}')
+          code=$(curl -sk -o /dev/null -w '%{http_code}' \
+            -H 'Host: tms.helloworlds.co.in' \
+            "https://${INGRESS_IP}/")
+          [[ "$code" == "200" ]] || { echo "shell returned $code"; exit 1; }
+          echo "✓ shell serves OK"
+
+  # ── Periodic cleanup: prune dangling docker images so /var/lib/docker
+  # doesn't grow unbounded.  Runs after any successful deploy.
+  cleanup:
+    needs: [deploy-identity, deploy-web]
+    if: always()
+    runs-on: self-hosted
+    steps:
+      - name: docker image prune
+        run: docker image prune -f --filter "until=72h"
