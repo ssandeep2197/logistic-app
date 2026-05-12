@@ -59,15 +59,15 @@ jobs:
       - name: kubectl apply
         run: |
           cd infra/k8s/tms
-          # NOTE: bootstrap-secrets.sh is NOT run here — secrets are
-          # generated once out-of-band and rotated manually.  Re-running
-          # would replace them and force every service to restart.
-          kubectl apply -f 00-namespace.yaml
-          kubectl apply -f 10-postgres-init.yaml
-          kubectl apply -f 20-postgres.yaml
-          kubectl apply -f 30-identity-service.yaml
-          kubectl apply -f 40-tms-web.yaml
-          kubectl apply -f 50-ingress.yaml
+          # Apply every YAML in this folder, in name order, so a new manifest
+          # (e.g. 60-postgres-backup.yaml) is picked up automatically.
+          # kubectl ignores non-YAML files like bootstrap-secrets.sh, which is
+          # intentionally NEVER auto-applied — secrets get rotated manually so
+          # CI can't blow them away.
+          for f in $(ls -1 *.yaml | sort); do
+            echo "--- applying $f ---"
+            kubectl apply -f "$f"
+          done
 
   # ── identity-service: bootJar → docker → k3s import → rollout restart ────
   deploy-identity:
