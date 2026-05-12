@@ -11,5 +11,6 @@
     <include file="db/changelog/changes/0003-seed-system-roles.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/0004-outbox-table.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/0005-oauth-identities.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0006-oauth-identity-updated-at.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

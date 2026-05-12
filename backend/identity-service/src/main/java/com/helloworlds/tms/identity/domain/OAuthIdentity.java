@@ -2,7 +2,6 @@ package com.helloworlds.tms.identity.domain;
 
 import com.helloworlds.tms.platform.core.persistence.TenantScopedEntity;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -15,6 +14,9 @@ import java.util.UUID;
  * {@link AppUser}.  Provider's {@code subject} is the immutable id — never
  * email.  Email is captured at link time only for display in the user's
  * "connected accounts" screen.
+ *
+ * Inherits {@code id}, {@code version}, {@code tenant_id}, {@code created_at},
+ * and {@code updated_at} from {@link TenantScopedEntity}.
  */
 @Entity
 @Table(name = "oauth_identity")
@@ -35,16 +37,8 @@ public class OAuthIdentity extends TenantScopedEntity {
     @Column(name = "email_at_link", length = 320)
     private String emailAtLink;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
-
     @Column(name = "last_used_at")
     private Instant lastUsedAt;
-
-    @PrePersist
-    void onPersist() {
-        if (createdAt == null) createdAt = Instant.now();
-    }
 
     public static OAuthIdentity create(String provider, String subject, UUID userId, String email) {
         OAuthIdentity oi = new OAuthIdentity();

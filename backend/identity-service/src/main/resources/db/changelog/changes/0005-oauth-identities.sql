@@ -13,6 +13,7 @@ CREATE TABLE identity.oauth_identity (
     subject         VARCHAR(255) NOT NULL,  -- Provider's stable user id
     email_at_link   VARCHAR(320),           -- Captured at link time, for display only
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),  -- maintained by TenantScopedEntity @PrePersist
     last_used_at    TIMESTAMPTZ,
     -- A given external identity maps to at most ONE TMS user across the
     -- entire system.  (Two tenants cannot both claim the same Google account.)
