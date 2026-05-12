@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tms-operations
+  namespace: tms
+  labels:
+    app: tms-operations
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: tms-operations }
+  template:
+    metadata:
+      labels: { app: tms-operations }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: operations-service
+          image: tms-operations-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8002 }]
+          env:
+            - { name: SERVER_PORT, value: "8002" }
+            - { name: SPRING_PROFILES_ACTIVE, value: "prod" }
+            - { name: DATABASE_URL,
+                value: "jdbc:postgresql://tms-postgres:5432/tms?currentSchema=operations" }
+            - { name: DATABASE_USER, value: operations_svc }
+            - name: DATABASE_PASSWORD
+              valueFrom: { secretKeyRef: { name: tms-svc-passwords, key: operations } }
+            - name: JWT_SIGNING_KEY
+              valueFrom: { secretKeyRef: { name: tms-jwt, key: signing-key } }
+            # Kafka isn't deployed yet — same dance as identity-service.
+            - { name: TMS_MESSAGING_OUTBOX_ENABLED, value: "false" }
+            - { name: SPRING_AUTOCONFIGURE_EXCLUDE,
+                value: "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration" }
+          resources:
+            requests: { cpu: "150m", memory: "640Mi" }
+            limits:   { cpu: "1500m", memory: "1.2Gi" }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tms-operations
+  namespace: tms
+spec:
+  selector: { app: tms-operations }
+  ports:
+    - { name: http, port: 8002, targetPort: http }

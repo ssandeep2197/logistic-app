@@ -38,8 +38,16 @@ management:
 tms:
   security:
     enable-rls-guc: true
+    public-paths: []                 # every endpoint is authed
     jwt:
       signing-key: ${JWT_SIGNING_KEY:local-dev-key-change-me-please-at-least-32-bytes}
       issuer: tms-identity
   messaging:
     outbox: { enabled: true, poll-ms: 1000 }
+
+logging:
+  pattern:
+    correlation: '[reqId=%X{requestId:-} tenant=%X{tenantId:-} user=%X{userId:-}] '
+  level:
+    com.helloworlds.tms: DEBUG
+    org.hibernate.SQL: INFO

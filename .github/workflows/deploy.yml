@@ -24,9 +24,10 @@ jobs:
   detect:
     runs-on: self-hosted
     outputs:
-      identity: ${{ steps.f.outputs.identity }}
-      frontend: ${{ steps.f.outputs.frontend }}
-      manifests: ${{ steps.f.outputs.manifests }}
+      identity:   ${{ steps.f.outputs.identity }}
+      operations: ${{ steps.f.outputs.operations }}
+      frontend:   ${{ steps.f.outputs.frontend }}
+      manifests:  ${{ steps.f.outputs.manifests }}
     steps:
       - uses: actions/checkout@v4
       - id: f
@@ -35,6 +36,14 @@ jobs:
           filters: |
             identity:
               - 'backend/identity-service/**'
+              - 'backend/platform-lib/**'
+              - 'backend/build.gradle.kts'
+              - 'backend/settings.gradle.kts'
+              - 'backend/gradle/**'
+              - 'backend/gradle.properties'
+              - 'backend/gradlew'
+            operations:
+              - 'backend/operations-service/**'
               - 'backend/platform-lib/**'
               - 'backend/build.gradle.kts'
               - 'backend/settings.gradle.kts'
@@ -127,6 +136,60 @@ jobs:
             sleep 2
           done
           echo "✗ identity didn't become ready in 60s" && exit 1
+
+  # ── operations-service: same shape as deploy-identity ────────────────────
+  deploy-operations:
+    needs: [detect, apply-manifests]
+    if: |
+      always()
+      && needs.detect.outputs.operations == 'true'
+      && (needs.apply-manifests.result == 'success' || needs.apply-manifests.result == 'skipped')
+    runs-on: self-hosted
+    env:
+      JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build bootJar
+        working-directory: backend
+        run: ./gradlew :operations-service:bootJar --no-configuration-cache --no-daemon
+
+      - name: Build + import image
+        run: |
+          set -euo pipefail
+          VERSION="v$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
+          JAR=$(ls backend/operations-service/build/libs/*.jar | head -1)
+          CTX=$(mktemp -d)
+          cp "$JAR" "$CTX/app.jar"
+          cat > "$CTX/Dockerfile" <<'DOCKERFILE'
+          FROM eclipse-temurin:21-jre-jammy
+          WORKDIR /app
+          RUN useradd -r -u 1001 -g root -s /usr/sbin/nologin tms
+          COPY app.jar /app/app.jar
+          USER 1001
+          EXPOSE 8002
+          ENTRYPOINT ["java","-XX:+UseG1GC","-XX:MaxRAMPercentage=75","-XX:+ExitOnOutOfMemoryError","-jar","/app/app.jar"]
+          DOCKERFILE
+          IMAGE="tms-operations-service:${VERSION}"
+          docker build -q -t "$IMAGE" -t tms-operations-service:latest "$CTX"
+          docker save "$IMAGE" tms-operations-service:latest | k3s ctr images import -
+
+      - name: Rollout
+        run: |
+          kubectl -n tms rollout restart deployment/tms-operations
+          kubectl -n tms rollout status  deployment/tms-operations --timeout=240s
+
+      - name: Smoke test
+        run: |
+          INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.spec.clusterIP}')
+          for i in $(seq 1 30); do
+            code=$(curl -sk -o /dev/null -w '%{http_code}' \
+              -H 'Host: tms.helloworlds.co.in' \
+              "https://${INGRESS_IP}/api/operations/actuator/health/readiness" || true)
+            [[ "$code" == "200" ]] && { echo "✓ operations ready"; exit 0; }
+            sleep 2
+          done
+          echo "✗ operations didn't become ready in 60s" && exit 1
 
   # ── frontend: pnpm build → bundle into nginx image → roll tms-web ────────
   deploy-web:
@@ -228,7 +291,7 @@ jobs:
   # ── Periodic cleanup: prune dangling docker images so /var/lib/docker
   # doesn't grow unbounded.  Runs after any successful deploy.
   cleanup:
-    needs: [deploy-identity, deploy-web]
+    needs: [deploy-identity, deploy-operations, deploy-web]
     if: always()
     runs-on: self-hosted
     steps:

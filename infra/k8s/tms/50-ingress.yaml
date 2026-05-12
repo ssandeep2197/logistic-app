@@ -34,7 +34,14 @@ spec:
               service:
                 name: tms-identity
                 port: { number: 8001 }
-          # Static frontend (shell + mfe-identity)
+          # Operations service routes (/api/operations/loads → /loads)
+          - path: /api/operations(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tms-operations
+                port: { number: 8002 }
+          # Static frontend (shell + every deployed MFE)
           - path: /()(.*)
             pathType: ImplementationSpecific
             backend:
