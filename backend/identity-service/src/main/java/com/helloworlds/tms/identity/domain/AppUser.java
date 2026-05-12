@@ -35,6 +35,11 @@ public class AppUser extends TenantScopedEntity {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    /** True for the operator(s) of the SaaS itself.  Set via a direct SQL
+     *  UPDATE — not exposed in any API endpoint.  See migration 0007. */
+    @Column(name = "is_platform_admin", nullable = false)
+    private boolean platformAdmin = false;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "user_group",

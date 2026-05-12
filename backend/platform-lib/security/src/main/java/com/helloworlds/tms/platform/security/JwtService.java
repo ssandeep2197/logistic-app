@@ -44,6 +44,8 @@ public class JwtService {
                 .claim("eml", principal.email())
                 .claim("perm", new ArrayList<>(principal.permissions()))
                 .claim("brn", principal.branchIds().stream().map(UUID::toString).toList())
+                // Platform-admin flag.  Absent in old tokens → false on parse.
+                .claim("pla", principal.platformAdmin())
                 .claim("typ", "access")
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
@@ -73,13 +75,15 @@ public class JwtService {
         List<String> perms = c.get("perm", List.class);
         @SuppressWarnings("unchecked")
         List<String> branches = c.get("brn", List.class);
+        Boolean plaClaim = c.get("pla", Boolean.class);
         return new AuthPrincipal(
                 UUID.fromString(c.getSubject()),
                 UUID.fromString(c.get("tid", String.class)),
                 c.get("eml", String.class),
                 perms == null ? Set.of() : new HashSet<>(perms),
                 branches == null ? Set.of()
-                                 : branches.stream().map(UUID::fromString).collect(java.util.stream.Collectors.toSet())
+                                 : branches.stream().map(UUID::fromString).collect(java.util.stream.Collectors.toSet()),
+                plaClaim != null && plaClaim
         );
     }
 

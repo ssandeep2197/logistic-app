@@ -2,7 +2,22 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.js';
 import { cn } from '@tms/design-system';
 
-interface NavItem { to: string; label: string; permission?: string }
+/**
+ * A nav item is visible when either:
+ *  • it has no `permission` requirement (always visible to authed users), or
+ *  • the principal carries the matching permission code, or
+ *  • the item is `platformOnly` and the principal is a platform admin.
+ *
+ * Platform items are orthogonal to tenant permissions; a Tenant Admin with
+ * every tenant-level permission still does NOT see /platform unless their
+ * is_platform_admin flag is set.
+ */
+interface NavItem {
+  to: string;
+  label: string;
+  permission?: string;
+  platformOnly?: boolean;
+}
 
 const NAV: NavItem[] = [
   { to: '/dispatch',   label: 'Dispatch'   },
@@ -14,11 +29,16 @@ const NAV: NavItem[] = [
   { to: '/documents',  label: 'Documents'  },
   { to: '/reports',    label: 'Reports',    permission: 'report:view:all' },
   { to: '/admin',      label: 'Admin',      permission: 'user:read:all' },
+  { to: '/platform',   label: 'Platform',   platformOnly: true },
 ];
 
 export function Sidebar() {
   const { principal } = useAuth();
-  const visible = NAV.filter(n => !n.permission || principal?.permissions.includes(n.permission));
+  const visible = NAV.filter(n => {
+    if (n.platformOnly) return principal?.platformAdmin === true;
+    if (n.permission)   return principal?.permissions.includes(n.permission);
+    return true;
+  });
 
   return (
     <aside className="flex w-56 flex-col border-r border-slate-200 bg-white">
@@ -33,9 +53,13 @@ export function Sidebar() {
               isActive
                 ? 'bg-blue-50 text-blue-700 font-medium'
                 : 'text-slate-700 hover:bg-slate-100',
+              item.platformOnly && 'mt-2 border-t border-slate-100 pt-3',
             )}
           >
             {item.label}
+            {item.platformOnly && (
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">owner</span>
+            )}
           </NavLink>
         ))}
       </nav>

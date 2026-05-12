@@ -20,7 +20,7 @@ export function decodeJwt<T = unknown>(token: string): T | null {
 export function principalFromAccessToken(token: string): AuthPrincipal | null {
   const claims = decodeJwt<{
     sub: string; tid: string; eml?: string;
-    perm?: string[]; brn?: string[];
+    perm?: string[]; brn?: string[]; pla?: boolean;
   }>(token);
   if (!claims) return null;
   return {
@@ -29,6 +29,7 @@ export function principalFromAccessToken(token: string): AuthPrincipal | null {
     email: claims.eml ?? '',
     permissions: claims.perm ?? [],
     branchIds: claims.brn ?? [],
+    platformAdmin: claims.pla === true,
   };
 }
 

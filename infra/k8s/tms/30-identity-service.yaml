@@ -55,6 +55,14 @@ spec:
                 value: "https://tms.helloworlds.co.in/api/identity/auth/oauth/google/callback" }
             - { name: OAUTH_FRONTEND_BASE_URL,
                 value: "https://tms.helloworlds.co.in" }
+            # Platform-admin /platform/* uses a SEPARATE connection bound to
+            # the postgres superuser so it can BYPASSRLS.  Tightly scoped to
+            # this service; never given to any other code path.
+            - { name: PLATFORM_DATABASE_URL,
+                value: "jdbc:postgresql://tms-postgres:5432/tms" }
+            - { name: PLATFORM_DATABASE_USER, value: tms }
+            - name: PLATFORM_DATABASE_PASSWORD
+              valueFrom: { secretKeyRef: { name: tms-postgres-secret, key: superuser-password } }
           resources:
             requests: { cpu: "200m", memory: "768Mi" }
             limits:   { cpu: "1500m", memory: "1.5Gi" }

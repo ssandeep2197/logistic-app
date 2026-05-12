@@ -38,6 +38,7 @@ export function App() {
               /dispatch once mfe-dispatch ships. */}
           <Route index element={<Navigate to="/admin" replace />} />
           <Route path="/admin/*"      element={<IdentityApp basePath="/admin" mode="admin" />} />
+          <Route path="/platform/*"   element={<IdentityApp basePath="/platform" mode="platform" />} />
           <Route path="/operations/*" element={<ComingSoon name="Operations" />} />
           <Route path="/dispatch/*"   element={<ComingSoon name="Dispatch" />} />
           <Route path="/tracking/*"   element={<ComingSoon name="Tracking" />} />

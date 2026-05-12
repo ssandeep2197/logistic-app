@@ -79,6 +79,15 @@ tms:
       # destinations (success → /login/oauth-callback, error → /login,
       # workspace-needs-slug → /signup/workspace).
       frontend-base-url: ${OAUTH_FRONTEND_BASE_URL:https://tms.helloworlds.co.in}
+  platform:
+    # Separate DataSource for /platform/* — uses the tms postgres SUPERUSER
+    # so it can BYPASSRLS and read across every tenant.  See
+    # PlatformDataSourceConfig.  The default DataSource (identity_svc) stays
+    # constrained by RLS for every other code path in the service.
+    datasource:
+      url:      ${PLATFORM_DATABASE_URL:jdbc:postgresql://localhost:5432/tms}
+      username: ${PLATFORM_DATABASE_USER:tms}
+      password: ${PLATFORM_DATABASE_PASSWORD:tms_dev_password}
 
 logging:
   pattern:

@@ -365,7 +365,8 @@ public class GoogleOAuthService {
                 user.getTenantId(),
                 user.getEmail(),
                 permissionResolver.resolve(user),
-                user.getBranchIds());
+                user.getBranchIds(),
+                user.isPlatformAdmin());
     }
 
     private String issueAndStoreRefresh(AppUser user) {

@@ -193,7 +193,8 @@ public class AuthService {
                 user.getTenantId(),
                 user.getEmail(),
                 permissionResolver.resolve(user),
-                user.getBranchIds());
+                user.getBranchIds(),
+                user.isPlatformAdmin());
     }
 
     private void emitTenantCreated(Tenant t) {

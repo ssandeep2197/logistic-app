@@ -5,6 +5,8 @@ export interface AuthPrincipal {
   email: string;
   permissions: string[];
   branchIds: string[];
+  /** True for the SaaS operator(s); unlocks the /platform dashboard. */
+  platformAdmin: boolean;
 }
 
 export interface TokenResponse {

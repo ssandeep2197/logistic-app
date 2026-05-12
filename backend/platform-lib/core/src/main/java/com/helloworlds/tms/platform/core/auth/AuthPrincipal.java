@@ -20,13 +20,20 @@ import java.util.UUID;
  *                      to call back to expand groups → roles → permissions.
  * @param branchIds     Branch scope, if the user is constrained to specific
  *                      branches.  Empty set means "no branch restriction".
+ * @param platformAdmin True for users who run the SaaS itself (you).  Grants
+ *                      access to /platform/* endpoints that see across every
+ *                      tenant via the BYPASSRLS Postgres role.  Orthogonal to
+ *                      tenant-level permissions — a platformAdmin still has
+ *                      whatever tenant role they have in their home tenant
+ *                      and only takes on cross-tenant view from /platform.
  */
 public record AuthPrincipal(
         UUID userId,
         UUID tenantId,
         String email,
         Set<String> permissions,
-        Set<UUID> branchIds
+        Set<UUID> branchIds,
+        boolean platformAdmin
 ) {
     public boolean has(String permission) {
         return permissions.contains(permission);
