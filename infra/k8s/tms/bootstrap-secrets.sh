@@ -47,5 +47,23 @@ kubectl -n "$NS" create secret generic tms-jwt \
   --from-literal=signing-key="$JWT_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# tms-oauth: Google OAuth client credentials.  Created EMPTY here so the
+# Deployment can reference it without erroring on a missing Secret.  Replace
+# with real values via a separate command once the Google Cloud Console app
+# exists:
+#
+#   kubectl -n tms create secret generic tms-oauth \
+#       --from-literal=google-client-id=12345.apps.googleusercontent.com \
+#       --from-literal=google-client-secret=GOCSPX-... \
+#       --dry-run=client -o yaml | kubectl apply -f -
+#   kubectl -n tms rollout restart deployment/tms-identity
+#
+# Until then identity-service will reply 503 from /auth/oauth/google/start.
+kubectl -n "$NS" get secret tms-oauth >/dev/null 2>&1 || \
+  kubectl -n "$NS" create secret generic tms-oauth \
+    --from-literal=google-client-id="" \
+    --from-literal=google-client-secret="" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
 echo "✓ secrets created (or rotated) in namespace $NS"
 echo "✓ identity-service password length: ${#SVC[identity]}"

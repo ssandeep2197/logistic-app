@@ -42,6 +42,19 @@ spec:
             # Avoid trying to connect to a Kafka that isn't there.
             - { name: SPRING_AUTOCONFIGURE_EXCLUDE,
                 value: "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration" }
+            # Google OAuth (optional).  Until the user provides credentials,
+            # the keys in tms-oauth are empty strings and the
+            # /auth/oauth/google/* endpoints respond 503.  Once the user
+            # creates the secret with real values, a rollout-restart picks
+            # them up without any other change.
+            - name: GOOGLE_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: tms-oauth, key: google-client-id, optional: true } }
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: tms-oauth, key: google-client-secret, optional: true } }
+            - { name: GOOGLE_REDIRECT_URI,
+                value: "https://tms.helloworlds.co.in/api/identity/auth/oauth/google/callback" }
+            - { name: OAUTH_FRONTEND_CALLBACK,
+                value: "https://tms.helloworlds.co.in/login/oauth-callback" }
           resources:
             requests: { cpu: "200m", memory: "768Mi" }
             limits:   { cpu: "1500m", memory: "1.5Gi" }

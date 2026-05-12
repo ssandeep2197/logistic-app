@@ -2,21 +2,29 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button, Card, Input, Label } from '@tms/design-system';
 import { api, type TokenResponse, type ProblemDetail, ApiError } from '@tms/shared';
+import { GoogleSignInButton } from './oauth/GoogleSignInButton.js';
+import { oauthErrorMessage } from './oauth/errors.js';
 
 /**
  * Login form.  On success it stashes tokens in localStorage and dispatches a
  * `storage` event; the shell's AuthProvider listens for that and re-renders
  * the layout with the authed routes available.
+ *
+ * Also surfaces OAuth errors propagated back via ?oauth_error=&lt;code&gt;
+ * (the backend's OAuthController redirects here on any flow failure).
  */
 export function Login() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const returnTo = params.get('from') ?? '/';
+  const oauthError = params.get('oauth_error');
 
   const [tenantSlug, setTenantSlug] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    oauthError ? oauthErrorMessage(oauthError) : null,
+  );
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: FormEvent) => {
@@ -31,7 +39,6 @@ export function Login() {
       });
       localStorage.setItem('tms.access', tokens.accessToken);
       localStorage.setItem('tms.refresh', tokens.refreshToken);
-      // Trigger AuthProvider's storage listener.
       window.dispatchEvent(new StorageEvent('storage', { key: 'tms.access' }));
       nav(returnTo, { replace: true });
     } catch (err) {
@@ -77,6 +84,16 @@ export function Login() {
             {busy ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
+
+        {/* Visual divider between password + SSO providers. */}
+        <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wider text-slate-400">
+          <div className="h-px flex-1 bg-slate-200" />
+          or
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <GoogleSignInButton tenantSlug={tenantSlug} mode="login"
+                            disabled={!tenantSlug.trim()} />
 
         <p className="mt-6 text-center text-sm text-slate-500">
           New to Helloworlds TMS?{' '}

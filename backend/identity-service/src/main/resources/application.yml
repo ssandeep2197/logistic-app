@@ -57,6 +57,7 @@ tms:
       - /auth/login
       - /auth/refresh
       - /auth/signup
+      - /auth/oauth/**            # /auth/oauth/google/start + /callback
     jwt:
       signing-key: ${JWT_SIGNING_KEY:local-dev-key-change-me-please-at-least-32-bytes}
       access-token-ttl: PT15M
@@ -66,6 +67,16 @@ tms:
     outbox:
       enabled: true
       poll-ms: 1000
+  oauth:
+    google:
+      # Blank = OAuth disabled at runtime; the /auth/oauth/google/* endpoints
+      # return 503 until the credentials are populated via env / k8s Secret.
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      # Must match EXACTLY what's registered in Google Cloud Console.
+      redirect-uri: ${GOOGLE_REDIRECT_URI:https://tms.helloworlds.co.in/api/identity/auth/oauth/google/callback}
+      # Where the browser is sent after a successful exchange (URL fragment carries tokens).
+      frontend-callback: ${OAUTH_FRONTEND_CALLBACK:https://tms.helloworlds.co.in/login/oauth-callback}
 
 logging:
   pattern:

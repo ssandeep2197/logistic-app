@@ -4,6 +4,7 @@ import { Signup } from './Signup.js';
 import { AdminUsers } from './admin/AdminUsers.js';
 import { AdminRoles } from './admin/AdminRoles.js';
 import { AdminGroups } from './admin/AdminGroups.js';
+import { OAuthCallback } from './oauth/OAuthCallback.js';
 
 export interface AppProps {
   basePath: string;
@@ -14,12 +15,22 @@ export interface AppProps {
  * Single entry component for the identity MFE.  The shell mounts it under
  * different routes; we read `mode` to pick which sub-tree to render.
  *
+ * `login` mode uses a small nested router so that /login/oauth-callback
+ * lands on the OAuth callback handler instead of the regular sign-in form.
+ *
  * In `admin` mode we use a nested <Routes> so the URL stays in sync with the
  * sub-page (Users / Roles / Groups).  React-Router's <Route path="..\/*">
  * in the shell forwards the unmatched suffix to us.
  */
 export default function App({ mode = 'login' }: AppProps) {
-  if (mode === 'login') return <Login />;
+  if (mode === 'login') {
+    return (
+      <Routes>
+        <Route path="oauth-callback" element={<OAuthCallback />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
+  }
   if (mode === 'signup') return <Signup />;
 
   return (

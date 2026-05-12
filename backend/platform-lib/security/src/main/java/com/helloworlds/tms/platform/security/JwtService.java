@@ -96,4 +96,39 @@ public class JwtService {
     }
 
     public record RefreshClaims(UUID userId, UUID tenantId) {}
+
+    /**
+     * Issues a short-lived signed JWT that carries arbitrary string claims.
+     * Used for OAuth state, password-reset tokens, etc. — anything that needs
+     * to round-trip through the user's browser without us trusting it on the
+     * way back.  The signature gives us tamper-resistance; the {@code typ}
+     * claim segregates state tokens from access/refresh tokens.
+     */
+    public String issueStateToken(String purpose, java.util.Map<String, String> claims, java.time.Duration ttl) {
+        Instant now = Instant.now();
+        JwtBuilder b = Jwts.builder()
+                .issuer(props.issuer())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(ttl)))
+                .claim("typ", "state")
+                .claim("pur", purpose);
+        claims.forEach(b::claim);
+        return b.signWith(key, Jwts.SIG.HS256).compact();
+    }
+
+    /** Parses a state token, verifying signature, issuer, expiry, and purpose. */
+    public java.util.Map<String, String> parseStateToken(String token, String expectedPurpose) {
+        Claims c = parser.parseSignedClaims(token).getPayload();
+        if (!"state".equals(c.get("typ", String.class))) {
+            throw new JwtException("Not a state token");
+        }
+        if (!expectedPurpose.equals(c.get("pur", String.class))) {
+            throw new JwtException("State token purpose mismatch");
+        }
+        java.util.Map<String, String> out = new java.util.HashMap<>();
+        for (var e : c.entrySet()) {
+            if (e.getValue() instanceof String s) out.put(e.getKey(), s);
+        }
+        return out;
+    }
 }

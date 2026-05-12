@@ -1,18 +1,29 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Button, Card, Input, Label } from '@tms/design-system';
 import { api, type TokenResponse, ApiError } from '@tms/shared';
+import { GoogleSignInButton } from './oauth/GoogleSignInButton.js';
+import { oauthErrorMessage } from './oauth/errors.js';
 
 /**
  * First-tenant signup.  The backend creates the tenant + admin user
  * atomically and returns tokens — we navigate straight into the app.
+ *
+ * Also offers Google sign-up: the backend's /auth/oauth/google/start with
+ * mode=signup creates a new tenant with the typed slug + an admin user
+ * linked to the Google identity (no TMS password needed).
  */
 export function Signup() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const oauthError = params.get('oauth_error');
+
   const [form, setForm] = useState({
     tenantSlug: '', tenantName: '', email: '', password: '', fullName: '',
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    oauthError ? oauthErrorMessage(oauthError) : null,
+  );
   const [busy, setBusy] = useState(false);
 
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -75,6 +86,15 @@ export function Signup() {
             {busy ? 'Creating…' : 'Create tenant'}
           </Button>
         </form>
+
+        <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wider text-slate-400">
+          <div className="h-px flex-1 bg-slate-200" />
+          or
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <GoogleSignInButton tenantSlug={form.tenantSlug} mode="signup"
+                            disabled={!form.tenantSlug.trim()} />
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Already have an account?{' '}
