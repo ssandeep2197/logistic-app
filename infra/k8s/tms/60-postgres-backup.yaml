@@ -1,0 +1,90 @@
+# Nightly logical backup of tms-postgres → local PVC on this VPS.
+#
+# What it protects against:
+#   ✓ accidental DELETE / DROP / botched migration  (logical dump is restorable)
+#   ✓ Liquibase rollback gone wrong
+#   ✓ disk-level corruption of the postgres PVC      (the backup PVC is a
+#                                                     separate k3s local-path
+#                                                     volume, so a single
+#                                                     filesystem hiccup
+#                                                     doesn't take both)
+#
+# What it does NOT protect against:
+#   ✗ losing this whole VPS  (off-site copy is a TODO — Backblaze B2 or R2)
+#   ✗ losing /var/lib/rancher/k3s/server/cred/encryption-config.json
+#     (the k3s Secret encryption key — back this file up separately, OUTSIDE
+#     the cluster, or you can't restore Secrets even from the cluster backup)
+#
+# Restore recipe (printed in the README; tested before relying on this):
+#   FILE=tms-2026-05-12-03-00.sql.gz                # pick a dump file
+#   kubectl -n tms exec -i deployment/tms-postgres -- \
+#       psql -U tms tms -c "DROP SCHEMA identity CASCADE; CREATE SCHEMA identity;"
+#   kubectl -n tms exec -i deployment/tms-postgres bash -- \
+#       "gunzip -c /var/backups/postgres/${FILE} | psql -U tms tms"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tms-postgres-backups
+  namespace: tms
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi          # ~7 KB per dump now → 50Gi is plenty for years
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tms-postgres-backup
+  namespace: tms
+spec:
+  # 03:15 UTC every day — after midnight US Eastern, before any morning traffic.
+  schedule: "15 3 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid   # never run two backups at once
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800   # kill if it runs > 30 min — way longer than expected
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: timescale/timescaledb-ha:pg16     # has pg_dump; reuses image already in k3s
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+                  OUT=/backups/tms-${TS}.sql.gz
+
+                  echo "Backing up tms → ${OUT}"
+                  pg_dump --no-owner --no-privileges --clean --if-exists \
+                          --format=plain "${PGURL}" | gzip -9 > "${OUT}.partial"
+                  mv "${OUT}.partial" "${OUT}"
+                  ls -lh "${OUT}"
+
+                  echo "Pruning anything older than 14 days"
+                  find /backups -maxdepth 1 -name 'tms-*.sql.gz' -mtime +14 -print -delete
+
+                  echo "Current backups:"
+                  ls -lh /backups | tail -20
+              env:
+                - name: PGPASSWORD
+                  valueFrom: { secretKeyRef: { name: tms-postgres-secret, key: superuser-password } }
+                - name: PGURL
+                  # postgresql://USER:PASS@HOST:PORT/DB — pg_dump prefers a URL
+                  # so we don't have to set PGHOST/PGUSER/etc separately.
+                  value: "postgresql://tms:$(PGPASSWORD)@tms-postgres:5432/tms"
+              volumeMounts:
+                - { name: backups, mountPath: /backups }
+              resources:
+                requests: { cpu: "100m", memory: "256Mi" }
+                limits:   { cpu: "1000m", memory: "1Gi" }
+          volumes:
+            - name: backups
+              persistentVolumeClaim: { claimName: tms-postgres-backups }
