@@ -4,6 +4,7 @@ import { Signup } from './Signup.js';
 import { AdminUsers } from './admin/AdminUsers.js';
 import { AdminRoles } from './admin/AdminRoles.js';
 import { AdminGroups } from './admin/AdminGroups.js';
+import { AdminSettings } from './admin/AdminSettings.js';
 import { OAuthCallback } from './oauth/OAuthCallback.js';
 import { WorkspaceSetup } from './oauth/WorkspaceSetup.js';
 import { PlatformDashboard } from './platform/PlatformDashboard.js';
@@ -48,10 +49,11 @@ export default function App({ mode = 'login' }: AppProps) {
 
   return (
     <Routes>
-      <Route index           element={<AdminUsers  />} />
-      <Route path="users/*"  element={<AdminUsers  />} />
-      <Route path="roles/*"  element={<AdminRoles  />} />
-      <Route path="groups/*" element={<AdminGroups />} />
+      <Route index             element={<AdminUsers    />} />
+      <Route path="users/*"    element={<AdminUsers    />} />
+      <Route path="roles/*"    element={<AdminRoles    />} />
+      <Route path="groups/*"   element={<AdminGroups   />} />
+      <Route path="settings/*" element={<AdminSettings />} />
     </Routes>
   );
 }

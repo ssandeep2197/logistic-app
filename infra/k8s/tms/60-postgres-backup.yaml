@@ -62,6 +62,20 @@ spec:
                   TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
                   OUT=/backups/tms-${TS}.sql.gz
 
+                  # Honor the platform-owner kill switch.  If the operator
+                  # has set identity.platform_setting backup.enabled=false
+                  # in the platform dashboard, exit cleanly without dumping.
+                  # Default = true (treat missing row or psql error as ON,
+                  # so a temporary DB blip doesn't silently skip a backup).
+                  ENABLED=$(psql "${PGURL}" -tAc \
+                    "SELECT COALESCE((SELECT value FROM identity.platform_setting WHERE key='backup.enabled'), 'true')" \
+                    2>/dev/null || echo "true")
+                  ENABLED=$(echo -n "$ENABLED" | tr -d '[:space:]')
+                  if [[ "$ENABLED" != "true" ]]; then
+                    echo "backup.enabled = '$ENABLED' at the platform level — skipping this run"
+                    exit 0
+                  fi
+
                   echo "Backing up tms → ${OUT}"
                   pg_dump --no-owner --no-privileges --clean --if-exists \
                           --format=plain "${PGURL}" | gzip -9 > "${OUT}.partial"

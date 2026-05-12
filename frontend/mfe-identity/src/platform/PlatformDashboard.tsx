@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@tms/design-system';
 import { api } from '@tms/shared';
+import { BackupToggle } from '../settings/BackupToggle.js';
 
 /**
  * Cross-tenant snapshot for the SaaS operator.  Backed by /platform/* which
@@ -104,6 +105,9 @@ export function PlatformDashboard() {
           </div>
         )}
       </Card>
+
+      {/* Platform settings — owner kill-switches go here. */}
+      <BackupToggle scope="platform" />
 
       {/* Recent users */}
       <Card className="p-6">
