@@ -10,22 +10,35 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   <li>{@code GOOGLE_REDIRECT_URI}  — must EXACTLY match what's registered in
  *       Google Cloud Console.  Includes the full URL, e.g.
  *       {@code https://tms.helloworlds.co.in/api/identity/auth/oauth/google/callback}.</li>
- *   <li>{@code OAUTH_FRONTEND_CALLBACK} — where to bounce the browser after
- *       a successful exchange, e.g.
- *       {@code https://tms.helloworlds.co.in/login/oauth-callback}.</li>
+ *   <li>{@code OAUTH_FRONTEND_BASE_URL} — public origin of the SPA, e.g.
+ *       {@code https://tms.helloworlds.co.in}.  Used to build the three
+ *       browser-side destination URLs (success, error, workspace setup).</li>
  * </ul>
- * If {@code clientId} is blank, the OAuth controller returns 503 so we can
- * deploy the code before the Google credentials exist.
+ * If {@code clientId} is blank, the OAuth controller refuses the flow so we
+ * can deploy the code before the Google credentials exist.
  */
 @ConfigurationProperties(prefix = "tms.oauth.google")
 public record GoogleOAuthProperties(
         String clientId,
         String clientSecret,
         String redirectUri,
-        String frontendCallback) {
+        String frontendBaseUrl) {
 
     public boolean isConfigured() {
         return clientId != null && !clientId.isBlank()
             && clientSecret != null && !clientSecret.isBlank();
     }
+
+    /** Where to land the browser after a successful sign-in (tokens in URL fragment). */
+    public String successUrl()   { return frontendBaseUrl + "/login/oauth-callback"; }
+
+    /** Where to land the browser when something failed (?oauth_error=<code>). */
+    public String errorUrl()     { return frontendBaseUrl + "/login"; }
+
+    /**
+     * Where to send the browser after Google identifies a new user that does
+     * NOT yet have a workspace.  Page reads the pendingSignup JWT from the
+     * URL fragment and shows the slug-entry form.
+     */
+    public String workspaceSetupUrl() { return frontendBaseUrl + "/signup/workspace"; }
 }

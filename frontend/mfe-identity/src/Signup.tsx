@@ -93,8 +93,10 @@ export function Signup() {
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
-        <GoogleSignInButton tenantSlug={form.tenantSlug} mode="signup"
-                            disabled={!form.tenantSlug.trim()} />
+        {/* tenantSlug is optional on the Google signup path — if it's blank
+            the backend bounces to /signup/workspace after Google auth so
+            the user can pick the slug there. */}
+        <GoogleSignInButton tenantSlug={form.tenantSlug} mode="signup" />
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Already have an account?{' '}

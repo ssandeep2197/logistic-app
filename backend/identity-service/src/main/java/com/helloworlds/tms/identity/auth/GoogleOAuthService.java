@@ -41,6 +41,27 @@ import java.util.UUID;
  *      and the user is stateless from there.
  *   3. The token-exchange response from Google over TLS is trusted, so we
  *      don't need JWKS-based id_token signature verification.
+ *
+ * <h3>Flow shape</h3>
+ * <pre>
+ *   click "Sign in with Google"            click "Sign up with Google"
+ *           │                                       │
+ *           ▼                                       ▼
+ *   /start?mode=login        →   Google   ←  /start?mode=signup (optionally with slug)
+ *           │                                       │
+ *           ▼                                       ▼
+ *   /callback                            /callback
+ *     identity exists? yes                 identity exists?
+ *       → /login/oauth-callback              yes → /login/oauth-callback (login as that user)
+ *         #accessToken=…                     no:
+ *       (issued our JWT)                       state has slug? yes → create tenant inline
+ *                                                                    /login/oauth-callback#…
+ *                                              state has no slug? → /signup/workspace
+ *                                                                    #pendingSignup=&lt;jwt&gt;
+ *                                                                    user enters slug
+ *                                                                    /complete-signup
+ *                                                                    → /login/oauth-callback#…
+ * </pre>
  */
 @Service
 @RequiredArgsConstructor
@@ -51,8 +72,10 @@ public class GoogleOAuthService {
     private static final String AUTH_URI    = "https://accounts.google.com/o/oauth2/v2/auth";
     private static final String TOKEN_URI   = "https://oauth2.googleapis.com/token";
     private static final String SCOPES      = "openid email profile";
-    private static final String STATE_PUR   = "google-oauth";
-    private static final Duration STATE_TTL = Duration.ofMinutes(5);
+    private static final String STATE_PUR           = "google-oauth";
+    private static final String PENDING_SIGNUP_PUR  = "google-pending-signup";
+    private static final Duration STATE_TTL          = Duration.ofMinutes(5);
+    private static final Duration PENDING_SIGNUP_TTL = Duration.ofMinutes(10);
 
     private final TenantRepository tenants;
     private final AppUserRepository users;
@@ -74,14 +97,23 @@ public class GoogleOAuthService {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
+    /** Outcome of a fully-resolved sign-in or sign-up. */
     public record AuthResult(UUID tenantId, UUID userId, String accessToken, String refreshToken) {}
+
+    /** Outcome that needs one more user step — collecting a workspace slug. */
+    public record PendingSignup(String pendingToken, String email, String name) {}
+
+    /** Discriminated result so the controller can route accordingly. */
+    public sealed interface CallbackResult permits Authenticated, NeedsWorkspace {}
+    public record Authenticated(AuthResult result) implements CallbackResult {}
+    public record NeedsWorkspace(PendingSignup signup) implements CallbackResult {}
 
     // ── Step 1: build the URL we redirect the browser to ───────────────────
 
     /**
-     * Builds the Google authorization URL.  The state token is a signed JWT
-     * carrying the tenant slug + mode so the callback can resolve where this
-     * request came from without trusting a query parameter.
+     * Builds the Google authorization URL.  {@code tenantSlug} may be blank;
+     * if present it short-circuits the post-Google interstitial (the user
+     * already told us their workspace name in the form).
      */
     public String buildAuthorizationUrl(String tenantSlug, String mode) {
         if (!config.isConfigured()) {
@@ -91,14 +123,13 @@ public class GoogleOAuthService {
         if (!"login".equals(mode) && !"signup".equals(mode)) {
             throw new DomainException("oauth_bad_mode", 400, "mode must be 'login' or 'signup'");
         }
-        if (tenantSlug == null || tenantSlug.isBlank()) {
-            throw new DomainException("oauth_missing_tenant", 400, "tenantSlug is required");
-        }
 
-        String state = jwt.issueStateToken(STATE_PUR, Map.of(
-                "tenantSlug", tenantSlug,
-                "mode", mode
-        ), STATE_TTL);
+        Map<String, String> stateClaims = new HashMap<>();
+        stateClaims.put("mode", mode);
+        if (tenantSlug != null && !tenantSlug.isBlank()) {
+            stateClaims.put("tenantSlug", tenantSlug);
+        }
+        String state = jwt.issueStateToken(STATE_PUR, stateClaims, STATE_TTL);
 
         StringBuilder url = new StringBuilder(AUTH_URI);
         url.append("?response_type=code");
@@ -114,48 +145,90 @@ public class GoogleOAuthService {
     // ── Step 2: handle the callback ───────────────────────────────────────
 
     /**
-     * Exchanges the authorization code for tokens, identifies the user, and
-     * issues OUR access + refresh tokens.  Transactional so the new-user
-     * creation path (signup) is atomic — tenant + role + user + identity all
-     * commit together or not at all.
+     * Exchanges the authorization code for tokens and identifies the user.
+     * Returns either a fully-resolved {@link Authenticated} (we issued our
+     * JWT) or a {@link NeedsWorkspace} (Google identified a new user but we
+     * still need a workspace slug).
      */
     @Transactional
-    public AuthResult handleCallback(String code, String state) {
+    public CallbackResult handleCallback(String code, String state) {
         if (!config.isConfigured()) {
             throw new DomainException("oauth_not_configured", 503, "Google OAuth is not configured");
         }
 
-        // Verify state, extract tenant + mode.
         Map<String, String> claims;
         try {
             claims = jwt.parseStateToken(state, STATE_PUR);
         } catch (Exception e) {
             throw new DomainException("oauth_bad_state", 400, "invalid or expired OAuth state");
         }
-        String tenantSlug = claims.get("tenantSlug");
+        String tenantSlug = claims.get("tenantSlug");   // may be null
         String mode       = claims.get("mode");
 
-        // Exchange the code with Google.
         GoogleTokens gt = exchangeCode(code);
-
-        // Decode the id_token payload — we trust the TLS channel for integrity.
         GoogleIdClaims gid = decodeIdToken(gt.idToken());
         if (!gid.emailVerified()) {
             throw new DomainException("oauth_email_unverified", 400,
                     "Google reports this email is not verified — sign in via Google again with a verified account");
         }
 
-        // Has this Google account ever been linked?
         Optional<OAuthIdentity> existing = identities.findByProviderAndSubject("google", gid.sub());
-
         if (existing.isPresent()) {
-            return loginExisting(existing.get(), tenantSlug);
+            return new Authenticated(loginExisting(existing.get(), tenantSlug));
         }
         if ("login".equals(mode)) {
             throw new DomainException("oauth_no_account", 404,
                     "no TMS account is linked to this Google identity yet — sign up instead");
         }
-        // signup mode: create a brand-new tenant + admin user linked to this Google identity.
+        // signup mode, identity is new.
+        if (tenantSlug != null && !tenantSlug.isBlank()) {
+            // User already chose a slug in the form — finish inline.
+            return new Authenticated(signupNew(tenantSlug, gid));
+        }
+        // No slug yet — issue a short-lived pendingSignup token and let the
+        // user pick the slug on the workspace setup page.
+        String pending = jwt.issueStateToken(PENDING_SIGNUP_PUR, Map.of(
+                "sub", gid.sub(),
+                "email", gid.email() == null ? "" : gid.email(),
+                "name",  gid.name()  == null ? "" : gid.name()
+        ), PENDING_SIGNUP_TTL);
+        return new NeedsWorkspace(new PendingSignup(pending, gid.email(), gid.name()));
+    }
+
+    /**
+     * Final step of the post-Google signup flow.  Called by the workspace
+     * setup page with the slug the user typed + the pendingSignup JWT.
+     * Creates the tenant, role, user, and identity atomically.
+     */
+    @Transactional
+    public AuthResult completeSignup(String tenantSlug, String pendingToken, String displayName) {
+        if (tenantSlug == null || tenantSlug.isBlank()) {
+            throw new DomainException("oauth_missing_tenant", 400, "tenantSlug is required");
+        }
+
+        Map<String, String> p;
+        try {
+            p = jwt.parseStateToken(pendingToken, PENDING_SIGNUP_PUR);
+        } catch (Exception e) {
+            throw new DomainException("oauth_pending_invalid", 400,
+                    "Sign-up session expired — please start again with Sign up with Google.");
+        }
+        String sub   = p.get("sub");
+        String email = p.get("email");
+        String name  = (displayName != null && !displayName.isBlank())
+                       ? displayName : p.get("name");
+        if (sub == null || sub.isBlank()) {
+            throw new DomainException("oauth_pending_invalid", 400, "Pending signup is missing Google subject");
+        }
+
+        // Did someone else link this Google account between Google sign-in
+        // and slug submission?  Race window is small (≤ 10 min) but real.
+        if (identities.findByProviderAndSubject("google", sub).isPresent()) {
+            throw new DomainException("oauth_already_linked", 409,
+                    "This Google account is already linked to a Helloworlds workspace.");
+        }
+
+        GoogleIdClaims gid = new GoogleIdClaims(sub, email, true, name);
         return signupNew(tenantSlug, gid);
     }
 
@@ -165,7 +238,8 @@ public class GoogleOAuthService {
         Tenant tenant = tenants.findById(oi.getTenantId())
                 .orElseThrow(() -> new DomainException("oauth_tenant_missing", 500,
                         "linked tenant no longer exists"));
-        if (tenantSlugFromState != null && !tenantSlugFromState.equalsIgnoreCase(tenant.getSlug())) {
+        if (tenantSlugFromState != null && !tenantSlugFromState.isBlank()
+                && !tenantSlugFromState.equalsIgnoreCase(tenant.getSlug())) {
             throw new DomainException("oauth_wrong_tenant", 403,
                     "this Google account is linked to a different tenant");
         }
@@ -256,8 +330,6 @@ public class GoogleOAuthService {
     }
 
     private GoogleIdClaims decodeIdToken(String idToken) {
-        // Header.Payload.Signature — we read the payload only; the TLS-secured
-        // exchange already proved authenticity.
         String[] parts = idToken.split("\\.");
         if (parts.length != 3) {
             throw new DomainException("oauth_bad_id_token", 502, "malformed id_token");
@@ -265,7 +337,6 @@ public class GoogleOAuthService {
         try {
             byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
             JsonNode n = json.readTree(payload);
-            // Defense in depth: validate audience matches our client id.
             String aud = textOrNull(n, "aud");
             if (aud == null || !aud.equals(config.clientId())) {
                 throw new DomainException("oauth_bad_audience", 502, "id_token audience does not match");
@@ -286,7 +357,7 @@ public class GoogleOAuthService {
     private record GoogleTokens(String idToken, String accessToken) {}
     private record GoogleIdClaims(String sub, String email, boolean emailVerified, String name) {}
 
-    // ── Helpers (mirror AuthService's private helpers; consolidate later) ─
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private AuthPrincipal toPrincipal(AppUser user) {
         return new AuthPrincipal(

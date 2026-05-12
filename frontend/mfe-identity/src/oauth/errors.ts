@@ -19,6 +19,8 @@ const MESSAGES: Record<string, string> = {
   oauth_tenant_missing:   'The tenant linked to this account no longer exists.',
   oauth_user_missing:     'The user linked to this Google account no longer exists.',
   oauth_unexpected:       'Something unexpected happened during sign-in. Please try again.',
+  oauth_pending_invalid:  'Sign-up session expired. Please start again with Sign up with Google.',
+  oauth_already_linked:   'This Google account is already linked to a Helloworlds workspace.',
   google_access_denied:   'You declined access on the Google consent screen.',
   conflict:               'That tenant slug is already taken — pick another and try again.',
 };

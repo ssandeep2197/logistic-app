@@ -75,8 +75,10 @@ tms:
       client-secret: ${GOOGLE_CLIENT_SECRET:}
       # Must match EXACTLY what's registered in Google Cloud Console.
       redirect-uri: ${GOOGLE_REDIRECT_URI:https://tms.helloworlds.co.in/api/identity/auth/oauth/google/callback}
-      # Where the browser is sent after a successful exchange (URL fragment carries tokens).
-      frontend-callback: ${OAUTH_FRONTEND_CALLBACK:https://tms.helloworlds.co.in/login/oauth-callback}
+      # Public origin of the SPA.  Used to build the three browser-side
+      # destinations (success → /login/oauth-callback, error → /login,
+      # workspace-needs-slug → /signup/workspace).
+      frontend-base-url: ${OAUTH_FRONTEND_BASE_URL:https://tms.helloworlds.co.in}
 
 logging:
   pattern:

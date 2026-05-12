@@ -92,8 +92,11 @@ export function Login() {
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
-        <GoogleSignInButton tenantSlug={tenantSlug} mode="login"
-                            disabled={!tenantSlug.trim()} />
+        {/* tenantSlug is OPTIONAL on the Google login path — the (provider,
+            subject) pair is globally unique, so the backend can resolve the
+            tenant without it.  Passing it through when typed acts as a
+            sanity check. */}
+        <GoogleSignInButton tenantSlug={tenantSlug} mode="login" />
 
         <p className="mt-6 text-center text-sm text-slate-500">
           New to Helloworlds TMS?{' '}

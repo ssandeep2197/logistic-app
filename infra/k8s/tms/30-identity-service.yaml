@@ -53,8 +53,8 @@ spec:
               valueFrom: { secretKeyRef: { name: tms-oauth, key: google-client-secret, optional: true } }
             - { name: GOOGLE_REDIRECT_URI,
                 value: "https://tms.helloworlds.co.in/api/identity/auth/oauth/google/callback" }
-            - { name: OAUTH_FRONTEND_CALLBACK,
-                value: "https://tms.helloworlds.co.in/login/oauth-callback" }
+            - { name: OAUTH_FRONTEND_BASE_URL,
+                value: "https://tms.helloworlds.co.in" }
           resources:
             requests: { cpu: "200m", memory: "768Mi" }
             limits:   { cpu: "1500m", memory: "1.5Gi" }
