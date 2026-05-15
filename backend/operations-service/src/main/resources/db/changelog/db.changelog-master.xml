@@ -9,4 +9,5 @@
     <include file="db/changelog/changes/0003-rls-policies.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/0004-company-truck-trailer-driver.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/0005-fix-state-code-types.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0006-rate-currency-varchar.sql" relativeToChangelogFile="false"/>
 </databaseChangeLog>
