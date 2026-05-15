@@ -4,6 +4,8 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
             https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
-    <include file="db/changelog/changes/0001-outbox.sql" relativeToChangelogFile="false"/>
-    <!-- 0002+ : domain tables (load, stop, customer, carrier, lane) — phase 1 work. -->
+    <include file="db/changelog/changes/0001-outbox.sql"       relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0002-core-tables.sql"  relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0003-rls-policies.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0004-company-truck-trailer-driver.sql" relativeToChangelogFile="false"/>
 </databaseChangeLog>
