@@ -16,5 +16,6 @@
     <include file="db/changelog/changes/0008-platform-tenant-settings.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/0009-customer-permissions.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/0010-fleet-permissions.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/0011-accounting-role.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

@@ -36,6 +36,12 @@ spec:
               valueFrom: { secretKeyRef: { name: tms-svc-passwords, key: operations } }
             - name: JWT_SIGNING_KEY
               valueFrom: { secretKeyRef: { name: tms-jwt, key: signing-key } }
+            # Symmetric key for pgcrypto AES-256 on bank_account.account_number /
+            # routing_number.  Missing key = hard fail at startup (refuses to
+            # write rows with a default key).  Rotation = generate new secret,
+            # re-encrypt existing rows via a one-off migration before swap.
+            - name: BANK_ENCRYPTION_KEY
+              valueFrom: { secretKeyRef: { name: tms-accounting-secret, key: bank-key } }
             # Kafka isn't deployed yet — same dance as identity-service.
             - { name: TMS_MESSAGING_OUTBOX_ENABLED, value: "false" }
             - { name: SPRING_AUTOCONFIGURE_EXCLUDE,

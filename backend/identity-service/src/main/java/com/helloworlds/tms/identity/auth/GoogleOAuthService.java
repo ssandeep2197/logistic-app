@@ -269,10 +269,26 @@ public class GoogleOAuthService {
 
         setTenantGuc(tenant.getId());
         return TenantContext.runAs(tenant.getId(), () -> {
+            // Same role-seeding split as AuthService.signup: Tenant Admin
+            // gets everything except bank_account:*; a separate Accounting
+            // role gets bank_account plus the financial-read perms.
+            java.util.List<Permission> allPerms = permissions.findAll();
+
             Role admin = Role.create("Tenant Admin", "Full access to this tenant");
             admin.setSystemRole(true);
-            admin.getPermissions().addAll(permissions.findAll());
+            admin.getPermissions().addAll(allPerms.stream()
+                    .filter(p -> !"bank_account".equals(p.getResource()))
+                    .toList());
             admin = roles.save(admin);
+
+            Role accounting = Role.create("Accounting",
+                    "Books, payments, payroll, bank details.  Held separately from " +
+                    "Tenant Admin so general admins cannot see employee/driver banking info.");
+            accounting.setSystemRole(true);
+            accounting.getPermissions().addAll(allPerms.stream()
+                    .filter(AuthService::isAccountingPermission)
+                    .toList());
+            roles.save(accounting);
 
             // Random password — the user authenticates via Google.  They can
             // set a real one later from the profile screen if they want a

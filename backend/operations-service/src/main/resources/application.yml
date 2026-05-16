@@ -44,6 +44,14 @@ tms:
       issuer: tms-identity
   messaging:
     outbox: { enabled: true, poll-ms: 1000 }
+  bank:
+    # AES-256 symmetric key for pgcrypto on bank_account.account_number /
+    # routing_number.  Injected from the tms-accounting-secret K8s Secret
+    # via env var BANK_ENCRYPTION_KEY in prod.  Dev default is a clearly
+    # marked placeholder — the BankAccountEncryptionKey bean rejects it so
+    # prod can't accidentally run with this value, but local dev / CI
+    # context-loads tests still come up clean.
+    encryption-key: ${BANK_ENCRYPTION_KEY:dev-only-not-for-prod-bank-key}
 
 logging:
   pattern:

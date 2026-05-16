@@ -82,20 +82,38 @@ public class AuthService {
         // ran at method entry with no tenant context, so the GUC is unset.
         setTenantGuc(tenant.getId());
         return TenantContext.runAs(tenant.getId(), () -> {
-            // Seed the "Tenant Admin" role with EVERY system permission. This
-            // is the only role that exists at signup time — the first user
-            // must be able to manage everything in their tenant or the app is
-            // unusable until a separate provisioning path exists.
+            // Seed the "Tenant Admin" role with every system permission
+            // EXCEPT bank_account:* — banking info is gated by a separate
+            // "Accounting" role (seeded just below) per the requirement that
+            // only the accounting team can see / edit bank details.  The
+            // first user is auto-attached to Tenant Admin; promoting them
+            // to Accounting is a deliberate second step.
             //
             // Subsequent admins can create more restricted roles via the
             // /roles endpoint and assign them via /groups, removing
             // permissions from the Tenant Admin role on the way if desired
             // (it's not protected against demotion — system_role only blocks
             // delete + rename).
+            java.util.List<Permission> allPerms = permissions.findAll();
+
             Role admin = Role.create("Tenant Admin", "Full access to this tenant");
             admin.setSystemRole(true);
-            admin.getPermissions().addAll(permissions.findAll());
+            admin.getPermissions().addAll(allPerms.stream()
+                    .filter(p -> !"bank_account".equals(p.getResource()))
+                    .toList());
             admin = roles.save(admin);
+
+            // The accounting team.  Gets bank_account:* plus read access to
+            // the entities it attaches accounts to, plus invoice/payment/payroll.
+            // No members at signup — a tenant admin assigns them explicitly.
+            Role accounting = Role.create("Accounting",
+                    "Books, payments, payroll, bank details.  Held separately from " +
+                    "Tenant Admin so general admins cannot see employee/driver banking info.");
+            accounting.setSystemRole(true);
+            accounting.getPermissions().addAll(allPerms.stream()
+                    .filter(AuthService::isAccountingPermission)
+                    .toList());
+            roles.save(accounting);
 
             AppUser user = AppUser.create(email, hasher.hash(password), fullName);
             user.getDirectRoles().add(admin);
@@ -229,5 +247,22 @@ public class AuthService {
             for (byte b : d) sb.append(String.format("%02x", b));
             return sb.toString();
         } catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+
+    /**
+     * Permissions the Accounting role gets at signup.  Mirrors the WHERE
+     * clause in identity migration 0011 so existing tenants (backfilled by
+     * the migration) and new tenants (this method) end up with the same set.
+     * Update both together.
+     */
+    static boolean isAccountingPermission(Permission p) {
+        String r = p.getResource();
+        String a = p.getAction();
+        String s = p.getScope();
+        if ("bank_account".equals(r)) return true;
+        if (("invoice".equals(r) || "payment".equals(r) || "payroll".equals(r)) && "all".equals(s)) return true;
+        if (("load".equals(r) || "company".equals(r) || "driver".equals(r))
+                && "read".equals(a) && "all".equals(s)) return true;
+        return false;
     }
 }
